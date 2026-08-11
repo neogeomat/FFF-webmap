@@ -400,7 +400,7 @@
     var overlays = {
         "Organizations": clusters_Grantees
     };
-    L.control.layers(baseLayers, overlays, {
+    var layerControl = L.control.layers(baseLayers, overlays, {
         collapsed: false
     }).addTo(map);
     document.getElementsByClassName('search-button')[0].className +=
@@ -447,6 +447,58 @@
                 lbl.classList.toggle('checked', cb.checked);
                 apply();
             });
+        });
+    })();
+</script>
+<script>
+    // Boundary overlays loaded from the committed .geojson files. The geometry is
+    // fetched (not embedded) so the large data files are not duplicated into JS.
+    // Overlays are registered with the layer control but NOT added to the map.
+    (function() {
+        ['District', 'Province', 'Nepal'].forEach(function(name) {
+            map.createPane('pane_' + name);
+        });
+        map.getPane('pane_District').style.zIndex = 410;
+        map.getPane('pane_Province').style.zIndex = 420;
+        map.getPane('pane_Nepal').style.zIndex = 430;
+
+        var specs = [{
+            varName: 'json_District',
+            url: 'data/District.geojson',
+            label: 'District boundaries',
+            pane: 'pane_District',
+            color: '#3388ff',
+            weight: 1.5
+        }, {
+            varName: 'json_Province',
+            url: 'data/Province.geojson',
+            label: 'Province boundaries',
+            pane: 'pane_Province',
+            color: '#e67e22',
+            weight: 2
+        }, {
+            varName: 'json_Nepal',
+            url: 'data/Nepal.geojson',
+            label: 'Country boundary (Nepal)',
+            pane: 'pane_Nepal',
+            color: '#555',
+            weight: 2.5
+        }];
+
+        specs.forEach(function(spec) {
+            fetch(spec.url)
+                .then(function(res) { return res.json(); })
+                .then(function(geojson) {
+                    window[spec.varName] = geojson;
+                    layerControl.addOverlay(L.geoJson(geojson, {
+                        pane: spec.pane,
+                        style: {
+                            fillOpacity: 0,
+                            color: spec.color,
+                            weight: spec.weight
+                        }
+                    }), spec.label);
+                });
         });
     })();
 </script>

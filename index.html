@@ -198,6 +198,21 @@
             z-index: 5;
         }
         .panel-close:hover { color: #005a93; }
+        /* ---- Viewport-height caps with internal scrolling ----
+           Both the right "Details" panel and the below-map "Aggregate" panel
+           get this class so long content (big cluster lists, many charts /
+           overview rows) scrolls inside the card body instead of pushing the
+           page beyond the visible screen. 80vh leaves room for the page
+           heading and margins. The scroll is on .card-body only. */
+        .panel-scroll {
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .panel-scroll > .card-body {
+            overflow-y: auto;
+        }
     </style>
     <title>FAO Grantees Map</title>
 </head>
@@ -246,7 +261,7 @@
             <div class="col-sm-3 col-md-3" style="flex:0 0 30%;max-width:30%;">
                 <span style="font-size: 20px;color: #0070b6;text-shadow: -1px -1px 1px #0070b6;">Click on map </span>
                 <span style="color: brown; font-size: 20px; text-shadow: -1px -1px 1px black; ">to see Info</span>
-                <div class="card mb-3">
+                <div class="card mb-3 panel-scroll">
                     <div class="card-body">
                         <h6 class="text-muted mb-1">Details</h6>
                         <div id="aggregate">
@@ -259,7 +274,7 @@
         </div>
         <div class='row'>
             <div class="col-12">
-                <div class="card mb-3">
+                <div class="card mb-3 panel-scroll">
                     <div class="card-body">
                         <h5>Aggregate</h5>
                         <div id="aggOverview"></div>

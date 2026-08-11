@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="stylesheet" href="css/leaflet.css">
+    <link rel="stylesheet" href="css/qgis2web.css">
+    <link rel="stylesheet" href="css/fontawesome-all.min.css">
+    <link rel="stylesheet" href="css/leaflet-search.css">
+    <link rel="stylesheet" href="css/MarkerCluster.css">
+    <!-- Custom fonts for this template-->
+    <link href="css/all.min.css" rel="stylesheet" type="text/css">
+
+    <!-- Page level plugin CSS-->
+    <link href="css/dataTables.bootstrap4.css" rel="stylesheet">
+
+    <!-- Custom styles for this template-->
+    <link href="css/sb-admin.css" rel="stylesheet">
+
+    <script src="js/jquery.min.js"></script>
+    <script src="js/bootstrap.bundle.min.js"></script>
+    <script src="js/jquery.dataTables.js"></script>
+    <script src="js/dataTables.bootstrap4.js"></script>
+
+    <script src="js/qgis2web_expressions.js"></script>
+    <script src="js/leaflet.js"></script>
+    <script src="js/leaflet.rotatedMarker.js"></script>
+    <script src="js/leaflet.pattern.js"></script>
+    <script src="js/leaflet-hash.js"></script>
+    <script src="js/Autolinker.min.js"></script>
+    <script src="js/rbush.min.js"></script>
+    <script src="js/labelgun.min.js"></script>
+    <script src="js/labels.js"></script>
+    <script src="js/leaflet-search.js"></script>
+    <script src="js/leaflet.markercluster.js"></script>
+    <script src="data/Grantees.js"></script>
+
+    <script src="https://cdn.polyfill.io/v2/polyfill.min.js?features=Promise"></script>
+    <script src="js/leaflet-timeline-slider.js"></script>
+    <style>
+        #map {
+            width: 100%;
+            height: 575px;
+            position: relative;
+        }
+        
+        .info {
+            padding: 6px 8px;
+            font: 14px/16px Arial, Helvetica, sans-serif;
+            background: white;
+            background: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+            pointer-events: none;
+        }
+        .org-pin-wrap {
+            background: transparent;
+            border: none;
+        }
+        /* Blue round pin with the S.N. number - highly visible on satellite/Esri */
+        .org-pin {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #0070b6;
+            border: 3px solid #ffffff;
+            box-shadow: 0 0 0 2px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.6);
+            color: #ffffff;
+            font: bold 12px/24px Arial, Helvetica, sans-serif;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .org-pin:hover {
+            background: #005a93;
+            cursor: pointer;
+        }
+        /* Permanent name tooltip on the map */
+        .org-tip-name {
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid #0070b6;
+            border-radius: 3px;
+            color: #1a3c5e;
+            font: 11px/14px Arial, Helvetica, sans-serif;
+            padding: 0 4px;
+            white-space: nowrap;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+        }
+        .leaflet-tooltip.org-tip-name::before { display: none; }
+
+        /* ---- Cluster markers (orange, distinct from blue points) ---- */
+        .grantee-cluster {
+            background: rgba(230, 126, 34, 0.85);
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            color: #ffffff;
+            font: bold 13px/24px Arial, Helvetica, sans-serif;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 0 2px rgba(0,0,0,0.45), 0 2px 4px rgba(0,0,0,0.5);
+        }
+        /* Orange pin used for the hovered (<6) hexagon fan-out, matching cluster color */
+        .org-pin-orange {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #e67e22;
+            border: 3px solid #ffffff;
+            box-shadow: 0 0 0 2px rgba(0,0,0,0.45), 0 2px 4px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .org-pin-orange:hover { background: #d6711a; cursor: pointer; }
+        /* 'Too many points' label shown when hovering a cluster of 6 or more */
+        .grantee-toomany {
+            background: rgba(230, 126, 34, 0.95);
+            border: 2px solid #ffffff;
+            border-radius: 4px;
+            color: #ffffff;
+            font: bold 12px/16px Arial, Helvetica, sans-serif;
+            text-align: center;
+            padding: 4px 8px;
+            white-space: nowrap;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+        }
+        /* ---- Filter UI (inside map, top-left, right of zoom buttons) ---- */
+        .grantee-filter {
+            position: absolute;
+            top: 10px;
+            left: 50px;
+            z-index: 1000;
+            background: #ffffff;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            padding: 8px 12px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            max-width: 60%;
+        }
+        .grantee-filter .gf-title {
+            font: bold 14px/18px Arial, Helvetica, sans-serif;
+            color: #1a3c5e;
+        }
+        /* Each value: rectangular box with curved (pill) sides + check mark */
+        .grantee-filter label.gf-value {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0;
+            padding: 5px 14px;
+            border: 1px solid #0070b6;
+            border-radius: 999px;            /* curved sides (pill) */
+            background: #f3f8fc;
+            font: 13px/16px Arial, Helvetica, sans-serif;
+            color: #1a3c5e;
+            cursor: pointer;
+            user-select: none;
+        }
+        .grantee-filter label.gf-value input {
+            display: none;                     /* hide native checkbox */
+        }
+        .grantee-filter label.gf-value .gf-box {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            border: 1px solid #0070b6;
+            background: #ffffff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 12px;
+            line-height: 1;
+        }
+        .grantee-filter label.gf-value.checked {
+            background: #0070b6;
+            color: #ffffff;
+        }
+        .grantee-filter label.gf-value.checked .gf-box {
+            background: #ffffff;
+            border-color: #ffffff;
+            color: #0070b6;                     /* the check mark */
+        }
+    </style>
+    <title>FAO Grantees Map</title>
+</head>
+
+<body>
+
+    <div>
+        <div class='row'>
+            <div class="col-12">
+                <span style="font-size: 40px;
+                text-shadow: -2px -2px 2px black;">FAO </span><span style="
+                color: #0070b6;
+                font-size: 40px;
+                text-shadow: -2px -2px 2px #0070b6; ">Grantees
+                </span>
+            </div>
+        </div>
+        <br>
+        <div class='row'>
+            <div class="col-sm-3 col-md-3" style="flex:0 0 20%;max-width:20%;">
+                <div id='info'></div>
+                <span style="font-size: 20px;color: #0070b6;text-shadow: -1px -1px 1px #0070b6;">Search for </span>
+                <span style="color: brown; font-size: 20px;
+                            text-shadow: -1px -1px 1px black;">Organization
+                </span>
+                <div class="card mb-3">
+                    <!-- <div class="card-header">
+                                <i class="fas fa-table"></i> Click the list to view in map
+                            </div> -->
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-sm-6 col-md-6" style="flex:0 0 50%;max-width:50%;">
+                <span style="font-size: 20px;color: #0070b6;text-shadow: -1px -1px 1px #0070b6;">View on </span>
+                <span style="color: brown; font-size: 20px;text-shadow: -1px -1px 1px black;">Map</span>
+                <div id="map" style="border: #ced4da 1px solid">
+                    <div id="granteeFilterBar" class="grantee-filter"></div>
+                </div>
+            </div>
+            <div class="col-sm-3 col-md-3" style="flex:0 0 30%;max-width:30%;">
+                <span style="font-size: 20px;color: #0070b6;text-shadow: -1px -1px 1px #0070b6;">Click on map </span>
+                <span style="color: brown; font-size: 20px; text-shadow: -1px -1px 1px black; ">to see Info</span>
+                <div id="bio" style="border: #ced4da 1px solid">
+                    <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='200'><rect width='400' height='200' fill='%230070b6'/><text x='50%25' y='50%25' fill='white' font-family='Arial' font-size='22' text-anchor='middle' dominant-baseline='middle'>FAO Grantees Map</text></svg>" alt="FAO Grantees" width="100%" height="100%">
+                    <ol>
+                        <li>If you want to find a particular organization, type its name in the search bar and the list will update.</li>
+                        <li>Click on the list and the organization will be highlighted in the map and this section will show information on that organization.</li>
+                        <li>You can also hover over any point the map to see information.</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+        <div class='row'>
+            <div class="col ">
+                <div class="table-responsive"></div>
+                <table class="table table-bordered" id="mainTable" width="100%" cellspacing="0"></table>
+            </div>
+            <!-- <div class="col "></div> -->
+        </div>
+    </div>
+    <!-- <iframe src="https://www.google.com/maps/embed?pb=!4v1564128406600!6m8!1m7!1stxEy7qZUuLd08lRVj1qCnw!2m2!1d42.70544377507082!2d-73.73282308149905!3f322.23315604397925!4f-14.34653017062999!5f0.7820865974627469 " width="600 " height="450
+                " frameborder="0 " style="border:0 " allowfullscreen></iframe> -->
+
+
+</body>
+<script src="js/myFuncs.js"></script>
+<script>
+    var highlightLayer;
+
+    function highlightFeature(e) {
+        highlightLayer = e.target;
+
+        b = L.DomUtil.get('bio');
+        b.innerHTML = bio_table_generator(highlightLayer.feature);
+        // debugger;
+
+        // if (e.target.feature.geometry.type === 'LineString') {
+        //     highlightLayer.setStyle({
+        //         color: '#ffff00',
+        //     });
+        // } else {
+        //     highlightLayer.setStyle({
+        //         fillColor: '#ffff00',
+        //         fillOpacity: 1
+        //     });
+        // }
+    }
+
+    var map = L.map('map', {
+            zoomControl: true,
+            maxZoom: 28,
+            minZoom: 1,
+            center: [27.7, 83.0],   // Nepal grantee centroid
+            zoom: 7
+        })
+        // var hash = new L.Hash(map);
+    map.attributionControl.setPrefix('<a href="https://github.com/tomchadwin/qgis2web " target="_blank ">qgis2web</a> &middot; <a href="http://leafletjs.com " title="A JS library for interactive maps ">Leaflet</a>');
+    var bounds_group = new L.featureGroup([]);
+
+    function setBounds() {
+        if (bounds_group.getLayers().length) {
+            map.fitBounds(bounds_group.getBounds());
+        }
+    }
+    var layer_OSMStandard_0 = L.tileLayer('http://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        opacity: 1.0,
+        attribution: '<a href="https://www.openstreetmap.org/copyright ">© OpenStreetMap contributors, CC-BY-SA</a>',
+    });
+    layer_OSMStandard_0;
+    // map.addLayer(layer_OSMStandard_0);
+
+    // Esri World Imagery (satellite) - no API key required
+    var layer_EsriImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+    });
+    layer_EsriImagery.addTo(map);   // default basemap
+
+    var empty_baseLayer = L.tileLayer('', {});
+
+    function pop_Grantees(feature, layer) {
+        layer.on({
+            mouseout: function(e) {
+                // info.update();
+
+                for (i in e.target._eventParents) {
+                    e.target._eventParents[i].resetStyle(e.target);
+                }
+            },
+            mouseover: highlightFeature,
+        });
+    }
+
+    map.createPane('pane_Grantees');
+    map.getPane('pane_Grantees').style.zIndex = 650;
+    var layer_Grantees = new L.geoJson(json_Grantees, {
+        attribution: '',
+        pane: 'pane_Grantees',
+        onEachFeature: pop_Grantees,
+        pointToLayer: function(feature, latlng) {
+            var marker = L.marker(latlng, style_Grantees_div_icon(feature));
+            marker.bindTooltip('S.N. ' + (feature.properties.S_N != null ? feature.properties.S_N : ''), {
+                direction: 'top',
+                className: 'org-tip-name',
+                offset: [0, -12]
+            });
+            return marker;
+        },
+    });
+    // Cluster the grantee points; orange clusters to distinguish from blue individual pins
+    var clusters_Grantees = L.markerClusterGroup({
+        showCoverageOnHover: true,   // needed so clustermouseover fires; polygon itself is suppressed below
+        spiderfyOnMaxZoom: true,
+        maxClusterRadius: 50,
+        iconCreateFunction: function(cluster) {
+            var n = cluster.getChildCount();
+            return L.divIcon({
+                html: '<div class="grantee-cluster" style="width:40px;height:40px;">' + n + '</div>',
+                className: 'grantee-cluster-wrap',
+                iconSize: [40, 40]
+            });
+        }
+    });
+    clusters_Grantees.addLayer(layer_Grantees);
+    bounds_group.addLayer(clusters_Grantees);
+    setBounds();
+    let search = new L.Control.Search({
+        layer: clusters_Grantees,
+        initial: false,
+        hideMarkerOnCollapse: true,
+        propertyName: 'Name_of_Organization'
+    });
+    map.addControl(search);
+
+    // Hover a cluster: <6 -> fan children into a hexagon (orange pins) joined to center;
+    // >=6 -> show a "too many points" message at the center.
+    var hoverLayer = L.layerGroup().addTo(map);
+    // suppress the default hover coverage polygon (keep the event, drop the shape)
+    clusters_Grantees._showCoverage = function() {};
+    clusters_Grantees._hideCoverage = function() {};
+    function showHexagon(cluster) {
+        hoverLayer.clearLayers();
+        var center = cluster.getLatLng();
+        var n = cluster.getChildCount();
+        if (n >= 6) {
+            // too many points: show an orange message at the cluster center
+            var msg = L.marker(center, {
+                icon: L.divIcon({
+                    html: '<div class="grantee-toomany">' + n + ' points — zoom in to explore</div>',
+                    className: 'grantee-toomany-wrap',
+                    iconSize: [0, 0]
+                }),
+                interactive: false
+            });
+            hoverLayer.addLayer(msg);
+            return;
+        }
+        // <6: fan the children into a hexagon around the center, joined by legs
+        var kids = cluster.getAllChildMarkers();
+        var radius = 70;                                  // px from cluster center to each pin
+        var cpt = map.latLngToLayerPoint(center);
+        kids.forEach(function(m, i) {
+            var ang = (Math.PI / 3) * i - Math.PI / 2;    // 6 vertices, start at top
+            var pt = cpt.add([radius * Math.cos(ang), radius * Math.sin(ang)]);
+            var ll = map.layerPointToLatLng(pt);
+            // orange leg from cluster center to this pin
+            L.polyline([center, ll], {
+                color: '#e67e22', weight: 2, opacity: 0.85, interactive: false
+            }).addTo(hoverLayer);
+            var mk = L.marker(ll, {
+                icon: L.divIcon({
+                    html: '<div class="org-pin-orange"></div>',
+                    className: 'org-pin-orange-wrap',
+                    iconSize: [24, 24]
+                })
+            });
+            var t = m.feature ? m.feature.properties : null;
+            if (t) {
+                mk.bindTooltip('S.N. ' + (t.S_N != null ? t.S_N : ''), {
+                    direction: 'top', className: 'org-tip-name', offset: [0, -12]
+                });
+                mk.on('click', function() {
+                    var b = L.DomUtil.get('bio');
+                    b.innerHTML = bio_table_generator(t);
+                });
+            }
+            hoverLayer.addLayer(mk);
+        });
+    }
+    // A real mouse hover over a cluster icon emits 'clustermouseover'/'clustermouseout'.
+    // (The plugin only renames those to 'clusterclustermouseover' when you call cg.fire() with a
+    //  MarkerCluster as the layer — which is not what a real DOM hover does, so bind to the plain names.)
+    clusters_Grantees.on('clustermouseover', function(e) { showHexagon(e.layer); });
+    clusters_Grantees.on('clustermouseout', function() { hoverLayer.clearLayers(); });
+    map.on('zoomstart movestart', function() { hoverLayer.clearLayers(); });
+    var baseLayers = {
+        "Satellite (Esri)": layer_EsriImagery,
+        "OpenStreetMap ": layer_OSMStandard_0,
+        "No background ": empty_baseLayer
+    };
+
+    var overlays = {
+        "Organizations": clusters_Grantees
+    };
+    L.control.layers(baseLayers, overlays, {
+        collapsed: false
+    }).addTo(map);
+    document.getElementsByClassName('search-button')[0].className +=
+        ' fa fa-binoculars';
+
+    // Filter organizations by Type_of_Grant - top horizontal bar (not a map control)
+    (function() {
+        var bar = document.getElementById('granteeFilterBar');
+        if (!bar) { return; }
+        var counts = {};
+        layer_Grantees.eachLayer(function(l) {
+            var t = l.feature.properties.Type_of_Grant;
+            counts[t] = (counts[t] || 0) + 1;
+        });
+        var types = Object.keys(counts).sort();
+        var html = '<span class="gf-title">Filter by Type of Grant</span>';
+        types.forEach(function(t) {
+            html += '<label class="gf-value checked">' +
+                        '<input type="checkbox" class="gf-type" value="' + t + '" checked>' +
+                        '<span class="gf-box">&#10003;</span>' +
+                        '<span>' + t + ' (' + counts[t] + ')</span>' +
+                    '</label>';
+        });
+        bar.innerHTML = html;
+        var apply = function() {
+            var checked = {};
+            bar.querySelectorAll('.gf-type').forEach(function(cb) {
+                checked[cb.value] = cb.checked;
+            });
+            layer_Grantees.eachLayer(function(l) {
+                var t = l.feature.properties.Type_of_Grant;
+                if (checked[t]) {
+                    if (!clusters_Grantees.hasLayer(l)) { clusters_Grantees.addLayer(l); }
+                } else {
+                    clusters_Grantees.removeLayer(l);
+                }
+            });
+        };
+        bar.querySelectorAll('.gf-value').forEach(function(lbl) {
+            lbl.addEventListener('click', function(e) {
+                e.preventDefault();
+                var cb = lbl.querySelector('.gf-type');
+                cb.checked = !cb.checked;
+                lbl.classList.toggle('checked', cb.checked);
+                apply();
+            });
+        });
+    })();
+</script>
+<script>
+    // $table = $('#sidebar table>tbody');
+    $table = $('#dataTable');
+    $col_to_show = ['S_N', 'Name_of_Organization'];
+
+    $data_table = [];
+    layer_Grantees.eachLayer(function(layer) {
+        $data = [];
+        for (const key in $col_to_show) {
+            if (layer.feature.properties.hasOwnProperty($col_to_show[key])) {
+                const element = layer.feature.properties[$col_to_show[key]];
+                $data.push(element);
+            }
+        }
+        $data_table.unshift($data);
+        // debugger;
+        // $data_table.push(layer.feature.properties);
+    });
+    var table = $('#dataTable').DataTable({
+        data: $data_table,
+        columns: [
+            { title: "S.N." },
+            { title: "Organization" }
+        ],
+        dom: 'f<t>p',
+        "scrollY": "400px",
+        "scrollCollapse": true,
+        "paging": true,
+        "pagingType": "numbers"
+    });
+    $('#dataTable tbody').on('click', 'tr', function() {
+        var data = table.row(this).data();
+        // alert('You clicked on ' + data[0] + '\'s row');
+        // console.log(data);
+        search._fillRecordsCache()
+        $loc = search._getLocation(data[1]);
+        search.showLocation($loc, data[1]);
+        let s = search._recordsFromLayer()[data[1]];
+        b = L.DomUtil.get('bio');
+        b.innerHTML = bio_table_generator(s.layer.feature);
+    });
+    // var maintable = $('#mainTable').DataTable({
+    //     data: $data_table,
+    //     columns: [
+    //         { title: "Organization" },
+    //         { title: "Location" },
+    //         { title: "Type of Grant" },
+    //         { title: "Commodities / Enterprises" }
+    //     ],
+    //     "scrollY": "400px",
+    //     "scrollCollapse": true,
+    //     "paging": true,
+    //     "pagingType": "numbers"
+    // });
+</script>
+
+</html>

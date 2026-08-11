@@ -41,6 +41,9 @@
 
     <script src="https://cdn.polyfill.io/v2/polyfill.min.js?features=Promise"></script>
     <script src="js/leaflet-timeline-slider.js"></script>
+    <script src="js/vendor/chart.umd.js"></script>
+    <script src="js/vendor/d3.v7.min.js"></script>
+    <script src="js/vendor/d3-sankey.min.js"></script>
     <style>
         #map {
             width: 100%;
@@ -227,8 +230,28 @@
                 <span style="font-size: 20px;color: #0070b6;text-shadow: -1px -1px 1px #0070b6;">Click on map </span>
                 <span style="color: brown; font-size: 20px; text-shadow: -1px -1px 1px black; ">to see Info</span>
                 <div class="card mb-3">
-                    <div class="card-body" id="info">
-                        <p class="text-muted mb-0">Hover over a cluster or click an organization in the list to see its details here.</p>
+                    <div class="card-body" id="aggregate">
+                        <p class="text-muted mb-0">Click a boundary (country / province / district) to see an overview.</p>
+                    </div>
+                </div>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5>Aggregate</h5>
+                        <div id="aggOverview"></div>
+                        <div><strong>Type of Grant (pie)</strong><canvas id="chartPie"></canvas></div>
+                        <div><strong>Commodities (bar)</strong><canvas id="chartBar"></canvas></div>
+                        <div><strong>Grant flow (sankey)</strong><svg id="chartSankey"></svg></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class='row'>
+            <div class="col-12">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5>Timeline</h5>
+                        <p class="text-muted mb-2">(no timeline data yet)</p>
+                        <input type="range" min="0" max="0" value="0" disabled style="width:100%;">
                     </div>
                 </div>
             </div>
@@ -253,7 +276,7 @@
     function highlightFeature(e) {
         highlightLayer = e.target;
 
-        b = L.DomUtil.get('info');
+        b = L.DomUtil.get('aggregate');
         b.innerHTML = bio_table_generator(highlightLayer.feature);
         // debugger;
 
@@ -358,7 +381,7 @@
     // Suppress the default hover coverage polygon so only the right-panel list shows.
     clusters_Grantees._showCoverage = function() {};
     clusters_Grantees._hideCoverage = function() {};
-    // Build the right-panel ("#info") list of organizations in a cluster, using the
+    // Build the right-panel ("#aggregate") list of organizations in a cluster, using the
     // SAME table format as bio_table_generator so it mirrors individual-node display.
     function clusterOrgTableHTML(cluster) {
         var kids = cluster.getAllChildMarkers();
@@ -388,7 +411,7 @@
     // A real mouse hover over a cluster icon emits 'clustermouseover'/'clustermouseout'.
     // Show the member organizations in the same table format as individual nodes.
     clusters_Grantees.on('clustermouseover', function(e) {
-        var b = L.DomUtil.get('info');
+        var b = L.DomUtil.get('aggregate');
         b.innerHTML = clusterOrgTableHTML(e.layer);
     });
     var baseLayers = {
@@ -455,12 +478,15 @@
     // fetched (not embedded) so the large data files are not duplicated into JS.
     // Overlays are registered with the layer control AND added to the map, but
     // their visibility is driven by zoom bands (see applyZoomVisibility below):
-    //   zoom < 9              -> Nepal (country) boundary
-    //   9 <= zoom <= 12       -> Province boundaries
-    //   zoom >= 12            -> District boundaries
-    // The bands are mutually exclusive: at most one boundary layer is auto-shown
-    // at a time. A layer toggled by the user in the layer control becomes
-    // "user-controlled" and no longer follows the zoom bands for the session.
+    //   Country (Nepal)       -> ALWAYS visible (white, weight 3), not part of
+    //                            the zoom bands; forced on in applyZoomVisibility.
+    //   zoom <= 8             -> country only
+    //   9 <= zoom <= 10       -> Province boundaries
+    //   zoom >= 11            -> District boundaries
+    // The province/district bands are mutually exclusive: at most one is
+    // auto-shown at a time. A layer toggled by the user in the layer control
+    // becomes "user-controlled" and no longer follows the zoom bands for the
+    // session.
     (function() {
         ['District', 'Province', 'Nepal'].forEach(function(name) {
             map.createPane('pane_' + name);
@@ -491,8 +517,8 @@
             url: 'data/Nepal.geojson',
             label: 'Country boundary (Nepal)',
             pane: 'pane_Nepal',
-            color: '#555',
-            weight: 2.5
+            color: '#ffffff',
+            weight: 3
         }];
 
         // Boundary layers the user has manually toggled via the layer control.
@@ -503,11 +529,12 @@
         // are not mistaken for user toggles in onBoundaryChange().
         var applyingZoom = false;
 
-        // Mutually exclusive zoom bands -> the single boundary layer to auto-show.
+        // Mutually exclusive zoom bands -> the single province/district layer to
+        // auto-show. The country layer is NOT part of the bands (always visible).
         var activeLayerVar = function(zoom) {
-            if (zoom < 9) { return 'layer_Nepal'; }
-            if (zoom <= 12) { return 'layer_Province'; }
-            return 'layer_District';
+            if (zoom >= 9 && zoom <= 10) { return 'layer_Province'; }
+            if (zoom >= 11) { return 'layer_District'; }
+            return null;
         };
 
         // Add/remove each boundary layer so only the band-active one is visible.
@@ -518,6 +545,12 @@
             specs.forEach(function(spec) {
                 var layer = window[spec.layerVar];
                 if (!layer) { return; }
+                // Country boundary is ALWAYS visible: force it on regardless of
+                // zoom bands or any user toggle for the session.
+                if (spec.layerVar === 'layer_Nepal') {
+                    if (!map.hasLayer(layer)) { layer.addTo(map); }
+                    return;
+                }
                 if (userControlled[spec.layerVar]) { return; }
                 if (spec.layerVar === shouldShow) {
                     if (!map.hasLayer(layer)) { layer.addTo(map); }
@@ -542,6 +575,15 @@
         map.on('overlayremove', onBoundaryChange);
         map.on('zoomend', applyZoomVisibility);
 
+        // Clicking a boundary writes a short overview into the Aggregate panel
+        // (#aggOverview), leaving the placeholder charts below it untouched.
+        function showOverview(title, msg) {
+            var el = document.getElementById('aggOverview');
+            if (!el) { return; }
+            el.innerHTML = '<p class="mb-0"><strong>' + title + '</strong><br />' +
+                '<span class="text-muted">' + msg + '</span></p>';
+        }
+
         Promise.all(specs.map(function(spec) {
             return fetch(spec.url)
                 .then(function(res) { return res.json(); })
@@ -553,6 +595,14 @@
                             fillOpacity: 0,
                             color: spec.color,
                             weight: spec.weight
+                        },
+                        onEachFeature: function(feature, lyr) {
+                            lyr.on('click', function() {
+                                var n = (geojson && geojson.features) ? geojson.features.length : null;
+                                var msg = 'No detailed data available yet.';
+                                if (n !== null) { msg += ' ' + n + ' feature(s) in this layer.'; }
+                                showOverview(spec.label, msg);
+                            });
                         }
                     });
                     window[spec.layerVar] = layer;
@@ -564,6 +614,48 @@
             // Initial visibility at the default zoom (7): Nepal shown, others removed.
             applyZoomVisibility();
         });
+    })();
+</script>
+<script>
+    // Aggregate panel: empty placeholder charts (no real data yet).
+    // Chart.js, d3 and d3.sankey are loaded from js/vendor/* in <head>.
+    (function() {
+        var hasChart = (typeof Chart !== 'undefined');
+        var ctxPie = document.getElementById('chartPie');
+        if (ctxPie && hasChart) {
+            window.chartPie = new Chart(ctxPie, {
+                type: 'pie',
+                data: { labels: [], datasets: [{ data: [] }] }
+            });
+        }
+        var ctxBar = document.getElementById('chartBar');
+        if (ctxBar && hasChart) {
+            window.chartBar = new Chart(ctxBar, {
+                type: 'bar',
+                data: { labels: [], datasets: [{ label: 'Commodities', data: [] }] }
+            });
+        }
+        var svgEl = document.getElementById('chartSankey');
+        if (svgEl && typeof d3 !== 'undefined' && typeof d3.sankey === 'function') {
+            var sw = (svgEl.parentElement && svgEl.parentElement.clientWidth) || 400;
+            var sh = 200;
+            var margin = { top: 8, right: 8, bottom: 8, left: 8 };
+            // Sankey generator set up with margins; empty until real data arrives.
+            var sankey = d3.sankey()
+                .nodeWidth(15)
+                .nodePadding(10)
+                .extent([[margin.left, margin.top], [sw - margin.right, sh - margin.bottom]]);
+            var svg = d3.select(svgEl)
+                .attr('width', sw)
+                .attr('height', sh);
+            svg.append('text')
+                .attr('x', sw / 2)
+                .attr('y', sh / 2)
+                .attr('text-anchor', 'middle')
+                .attr('fill', '#999')
+                .style('font', '13px Arial, Helvetica, sans-serif')
+                .text('No grant flow data yet');
+        }
     })();
 </script>
 <script>
@@ -604,7 +696,7 @@
         $loc = search._getLocation(data[1]);
         search.showLocation($loc, data[1]);
         let s = search._recordsFromLayer()[data[1]];
-        b = L.DomUtil.get('info');
+        b = L.DomUtil.get('aggregate');
         b.innerHTML = bio_table_generator(s.layer.feature);
     });
     // var maintable = $('#mainTable').DataTable({

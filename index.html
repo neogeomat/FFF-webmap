@@ -453,7 +453,14 @@
 <script>
     // Boundary overlays loaded from the committed .geojson files. The geometry is
     // fetched (not embedded) so the large data files are not duplicated into JS.
-    // Overlays are registered with the layer control but NOT added to the map.
+    // Overlays are registered with the layer control AND added to the map, but
+    // their visibility is driven by zoom bands (see applyZoomVisibility below):
+    //   zoom < 9              -> Nepal (country) boundary
+    //   9 <= zoom <= 12       -> Province boundaries
+    //   zoom >= 12            -> District boundaries
+    // The bands are mutually exclusive: at most one boundary layer is auto-shown
+    // at a time. A layer toggled by the user in the layer control becomes
+    // "user-controlled" and no longer follows the zoom bands for the session.
     (function() {
         ['District', 'Province', 'Nepal'].forEach(function(name) {
             map.createPane('pane_' + name);
@@ -464,6 +471,7 @@
 
         var specs = [{
             varName: 'json_District',
+            layerVar: 'layer_District',
             url: 'data/District.geojson',
             label: 'District boundaries',
             pane: 'pane_District',
@@ -471,6 +479,7 @@
             weight: 1.5
         }, {
             varName: 'json_Province',
+            layerVar: 'layer_Province',
             url: 'data/Province.geojson',
             label: 'Province boundaries',
             pane: 'pane_Province',
@@ -478,6 +487,7 @@
             weight: 2
         }, {
             varName: 'json_Nepal',
+            layerVar: 'layer_Nepal',
             url: 'data/Nepal.geojson',
             label: 'Country boundary (Nepal)',
             pane: 'pane_Nepal',
@@ -485,20 +495,74 @@
             weight: 2.5
         }];
 
-        specs.forEach(function(spec) {
-            fetch(spec.url)
+        // Boundary layers the user has manually toggled via the layer control.
+        // Once present, the zoom bands no longer affect that layer.
+        var userControlled = {};
+
+        // True only while WE add/remove layers programmatically, so those changes
+        // are not mistaken for user toggles in onBoundaryChange().
+        var applyingZoom = false;
+
+        // Mutually exclusive zoom bands -> the single boundary layer to auto-show.
+        var activeLayerVar = function(zoom) {
+            if (zoom < 9) { return 'layer_Nepal'; }
+            if (zoom <= 12) { return 'layer_Province'; }
+            return 'layer_District';
+        };
+
+        // Add/remove each boundary layer so only the band-active one is visible.
+        var applyZoomVisibility = function() {
+            var zoom = map.getZoom();
+            var shouldShow = activeLayerVar(zoom);
+            applyingZoom = true;
+            specs.forEach(function(spec) {
+                var layer = window[spec.layerVar];
+                if (!layer) { return; }
+                if (userControlled[spec.layerVar]) { return; }
+                if (spec.layerVar === shouldShow) {
+                    if (!map.hasLayer(layer)) { layer.addTo(map); }
+                } else {
+                    if (map.hasLayer(layer)) { map.removeLayer(layer); }
+                }
+            });
+            applyingZoom = false;
+        };
+
+        // A boundary layer added/removed outside of our zoom logic was toggled by
+        // the user in the layer control -> it becomes user-controlled.
+        var onBoundaryChange = function(e) {
+            if (applyingZoom) { return; }
+            specs.forEach(function(spec) {
+                if (window[spec.layerVar] === e.layer) {
+                    userControlled[spec.layerVar] = true;
+                }
+            });
+        };
+        map.on('overlayadd', onBoundaryChange);
+        map.on('overlayremove', onBoundaryChange);
+        map.on('zoomend', applyZoomVisibility);
+
+        Promise.all(specs.map(function(spec) {
+            return fetch(spec.url)
                 .then(function(res) { return res.json(); })
                 .then(function(geojson) {
                     window[spec.varName] = geojson;
-                    layerControl.addOverlay(L.geoJson(geojson, {
+                    var layer = L.geoJson(geojson, {
                         pane: spec.pane,
                         style: {
                             fillOpacity: 0,
                             color: spec.color,
                             weight: spec.weight
                         }
-                    }), spec.label);
+                    });
+                    window[spec.layerVar] = layer;
+                    layerControl.addOverlay(layer, spec.label);
+                    applyingZoom = true;
+                    layer.addTo(map);
                 });
+        })).then(function() {
+            // Initial visibility at the default zoom (7): Nepal shown, others removed.
+            applyZoomVisibility();
         });
     })();
 </script>

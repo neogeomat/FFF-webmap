@@ -515,17 +515,7 @@
 <script>
     // Boundary overlays loaded from the committed .geojson files. The geometry is
     // fetched (not embedded) so the large data files are not duplicated into JS.
-    // Overlays are registered with the layer control AND added to the map, but
-    // their visibility is driven by zoom bands (see applyZoomVisibility below):
-    //   Country (Nepal)       -> ALWAYS visible (white, weight 3), not part of
-    //                            the zoom bands; forced on in applyZoomVisibility.
-    //   zoom <= 8             -> country only
-    //   9 <= zoom <= 10       -> Province boundaries
-    //   zoom >= 11            -> District boundaries
-    // The province/district bands are mutually exclusive: at most one is
-    // auto-shown at a time. A layer toggled by the user in the layer control
-    // becomes "user-controlled" and no longer follows the zoom bands for the
-    // session.
+    // District and Province are toggleable overlays (default off); Country is always visible.
     (function() {
         ['District', 'Province', 'Nepal'].forEach(function(name) {
             map.createPane('pane_' + name);
@@ -560,60 +550,6 @@
             weight: 3
         }];
 
-        // Boundary layers the user has manually toggled via the layer control.
-        // Once present, the zoom bands no longer affect that layer.
-        var userControlled = {};
-
-        // True only while WE add/remove layers programmatically, so those changes
-        // are not mistaken for user toggles in onBoundaryChange().
-        var applyingZoom = false;
-
-        // Mutually exclusive zoom bands -> the single province/district layer to
-        // auto-show. The country layer is NOT part of the bands (always visible).
-        var activeLayerVar = function(zoom) {
-            if (zoom >= 9 && zoom <= 10) { return 'layer_Province'; }
-            if (zoom >= 11) { return 'layer_District'; }
-            return null;
-        };
-
-        // Add/remove each boundary layer so only the band-active one is visible.
-        var applyZoomVisibility = function() {
-            var zoom = map.getZoom();
-            var shouldShow = activeLayerVar(zoom);
-            applyingZoom = true;
-            specs.forEach(function(spec) {
-                var layer = window[spec.layerVar];
-                if (!layer) { return; }
-                // Country boundary is ALWAYS visible: force it on regardless of
-                // zoom bands or any user toggle for the session.
-                if (spec.layerVar === 'layer_Nepal') {
-                    if (!map.hasLayer(layer)) { layer.addTo(map); }
-                    return;
-                }
-                if (userControlled[spec.layerVar]) { return; }
-                if (spec.layerVar === shouldShow) {
-                    if (!map.hasLayer(layer)) { layer.addTo(map); }
-                } else {
-                    if (map.hasLayer(layer)) { map.removeLayer(layer); }
-                }
-            });
-            applyingZoom = false;
-        };
-
-        // A boundary layer added/removed outside of our zoom logic was toggled by
-        // the user in the layer control -> it becomes user-controlled.
-        var onBoundaryChange = function(e) {
-            if (applyingZoom) { return; }
-            specs.forEach(function(spec) {
-                if (window[spec.layerVar] === e.layer) {
-                    userControlled[spec.layerVar] = true;
-                }
-            });
-        };
-        map.on('overlayadd', onBoundaryChange);
-        map.on('overlayremove', onBoundaryChange);
-        map.on('zoomend', applyZoomVisibility);
-
         // Clicking a boundary writes a short overview into the Aggregate panel
         // (#aggOverview), leaving the placeholder charts below it untouched.
         function showOverview(title, msg) {
@@ -647,12 +583,41 @@
                     });
                     window[spec.layerVar] = layer;
                     layerControl.addOverlay(layer, spec.label);
-                    applyingZoom = true;
-                    layer.addTo(map);
+                    if (spec.layerVar === 'layer_Nepal') {
+                        layer.addTo(map);
+                    }
                 });
         })).then(function() {
-            // Initial visibility at the default zoom (7): Nepal shown, others removed.
-            applyZoomVisibility();
+            // Build the boundary toggle pills in the top filter bar now that the
+            // feature counts are known. Country was added to the map above;
+            // District/Province default OFF and are toggled via these pills.
+            var bar = document.getElementById('granteeFilterBar');
+            if (bar) {
+                var district = window.json_District ? window.json_District.features.length : 0;
+                var province = window.json_Province ? window.json_Province.features.length : 0;
+                bar.insertAdjacentHTML('beforeend',
+                    '<span class="gf-title">Boundary layers</span>' +
+                    '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_District">' +
+                    '<span class="gf-box">&#10003;</span><span>District boundaries (' + district + ')</span></label>' +
+                    '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_Province">' +
+                    '<span class="gf-box">&#10003;</span><span>Province boundaries (' + province + ')</span></label>'
+                );
+                bar.querySelectorAll('.gf-boundary').forEach(function(cb) {
+                    var lbl = cb.closest('label.gf-value');
+                    lbl.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        cb.checked = !cb.checked;
+                        lbl.classList.toggle('checked', cb.checked);
+                        var layer = window[cb.dataset.layer];
+                        if (!layer) { return; }
+                        if (cb.checked) {
+                            if (!map.hasLayer(layer)) { layer.addTo(map); }
+                        } else {
+                            if (map.hasLayer(layer)) { map.removeLayer(layer); }
+                        }
+                    });
+                });
+            }
         });
     })();
 </script>

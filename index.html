@@ -181,6 +181,23 @@
         }
         .org-card:last-child { margin-bottom: 0; }
         .org-card .table { margin-bottom: 0; }
+        /* ---- Close (x) button for the right-column cards ---- */
+        .card { position: relative; }
+        .panel-close {
+            position: absolute;
+            top: 6px;
+            right: 8px;
+            cursor: pointer;
+            color: #0070b6;
+            font-weight: bold;
+            font-size: 18px;
+            line-height: 1;
+            border: none;
+            background: transparent;
+            padding: 2px 6px;
+            z-index: 5;
+        }
+        .panel-close:hover { color: #005a93; }
     </style>
     <title>FAO Grantees Map</title>
 </head>
@@ -230,9 +247,13 @@
                 <span style="font-size: 20px;color: #0070b6;text-shadow: -1px -1px 1px #0070b6;">Click on map </span>
                 <span style="color: brown; font-size: 20px; text-shadow: -1px -1px 1px black; ">to see Info</span>
                 <div class="card mb-3">
-                    <div class="card-body" id="aggregate">
-                        <p class="text-muted mb-0">Click a boundary (country / province / district) to see an overview.</p>
+                    <div class="card-body">
+                        <h6 class="text-muted mb-1">Details</h6>
+                        <div id="aggregate">
+                            <p class="text-muted mb-0">Click a boundary (country / province / district) to see an overview.</p>
+                        </div>
                     </div>
+                    <button type="button" class="panel-close" title="Close" aria-label="Close" onclick="this.closest('.card').style.display='none'">×</button>
                 </div>
                 <div class="card mb-3">
                     <div class="card-body">
@@ -242,6 +263,7 @@
                         <div><strong>Commodities (bar)</strong><canvas id="chartBar"></canvas></div>
                         <div><strong>Grant flow (sankey)</strong><svg id="chartSankey"></svg></div>
                     </div>
+                    <button type="button" class="panel-close" title="Close" aria-label="Close" onclick="this.closest('.card').style.display='none'">×</button>
                 </div>
             </div>
         </div>
@@ -278,6 +300,7 @@
 
         b = L.DomUtil.get('aggregate');
         b.innerHTML = bio_table_generator(highlightLayer.feature);
+        b.closest('.card').style.display = '';
         // debugger;
 
         // if (e.target.feature.geometry.type === 'LineString') {
@@ -413,6 +436,7 @@
     clusters_Grantees.on('clustermouseover', function(e) {
         var b = L.DomUtil.get('aggregate');
         b.innerHTML = clusterOrgTableHTML(e.layer);
+        b.closest('.card').style.display = '';
     });
     var baseLayers = {
         "Satellite (Esri)": layer_EsriImagery,
@@ -582,6 +606,7 @@
             if (!el) { return; }
             el.innerHTML = '<p class="mb-0"><strong>' + title + '</strong><br />' +
                 '<span class="text-muted">' + msg + '</span></p>';
+            el.closest('.card').style.display = '';
         }
 
         Promise.all(specs.map(function(spec) {
@@ -698,6 +723,7 @@
         let s = search._recordsFromLayer()[data[1]];
         b = L.DomUtil.get('aggregate');
         b.innerHTML = bio_table_generator(s.layer.feature);
+        b.closest('.card').style.display = '';
     });
     // var maintable = $('#mainTable').DataTable({
     //     data: $data_table,

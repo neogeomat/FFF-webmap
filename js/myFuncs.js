@@ -2,7 +2,8 @@ var bio_table_generator = function(feature) {
     if (feature) {
         bio =
             '<div class="row">' +
-              '<div class="col-sm-3 col-md-6">' +
+              '<div class="col-12">' +
+                '<div class="org-card">' +
                 '<table class="table">' +
                   '<tr><td colspan="2"><strong>S.N.</strong> ' +
                     (feature.properties['S_N'] != null ? feature.properties['S_N'] : '') + '</td></tr>' +
@@ -15,6 +16,7 @@ var bio_table_generator = function(feature) {
                   '<tr><th scope="row">Commodities / Enterprises</th><td>' +
                     (feature.properties['Commodities'] || '') + '</td></tr>' +
                 '</table>' +
+                '</div>' +
               '</div>' +
             '</div>';
     } else {

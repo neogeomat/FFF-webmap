@@ -106,31 +106,6 @@
             justify-content: center;
             box-shadow: 0 0 0 2px rgba(0,0,0,0.45), 0 2px 4px rgba(0,0,0,0.5);
         }
-        /* Orange pin used for the hovered (<6) hexagon fan-out, matching cluster color */
-        .org-pin-orange {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background: #e67e22;
-            border: 3px solid #ffffff;
-            box-shadow: 0 0 0 2px rgba(0,0,0,0.45), 0 2px 4px rgba(0,0,0,0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .org-pin-orange:hover { background: #d6711a; cursor: pointer; }
-        /* 'Too many points' label shown when hovering a cluster of 6 or more */
-        .grantee-toomany {
-            background: rgba(230, 126, 34, 0.95);
-            border: 2px solid #ffffff;
-            border-radius: 4px;
-            color: #ffffff;
-            font: bold 12px/16px Arial, Helvetica, sans-serif;
-            text-align: center;
-            padding: 4px 8px;
-            white-space: nowrap;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
-        }
         /* ---- Filter UI (inside map, top-left, right of zoom buttons) ---- */
         .grantee-filter {
             position: absolute;
@@ -192,6 +167,17 @@
             border-color: #ffffff;
             color: #0070b6;                     /* the check mark */
         }
+        /* Right-panel list of organizations shown when hovering a cluster uses the shared .table style */
+        /* Each individual organization is wrapped in a bordered card so multiple orgs are clearly separated */
+        .org-card {
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-bottom: 10px;
+            background: #fff;
+        }
+        .org-card:last-child { margin-bottom: 0; }
+        .org-card .table { margin-bottom: 0; }
     </style>
     <title>FAO Grantees Map</title>
 </head>
@@ -212,7 +198,7 @@
         <br>
         <div class='row'>
             <div class="col-sm-3 col-md-3" style="flex:0 0 20%;max-width:20%;">
-                <div id='info'></div>
+                <div id='searchInfo'></div>
                 <span style="font-size: 20px;color: #0070b6;text-shadow: -1px -1px 1px #0070b6;">Search for </span>
                 <span style="color: brown; font-size: 20px;
                             text-shadow: -1px -1px 1px black;">Organization
@@ -240,13 +226,10 @@
             <div class="col-sm-3 col-md-3" style="flex:0 0 30%;max-width:30%;">
                 <span style="font-size: 20px;color: #0070b6;text-shadow: -1px -1px 1px #0070b6;">Click on map </span>
                 <span style="color: brown; font-size: 20px; text-shadow: -1px -1px 1px black; ">to see Info</span>
-                <div id="bio" style="border: #ced4da 1px solid">
-                    <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='200'><rect width='400' height='200' fill='%230070b6'/><text x='50%25' y='50%25' fill='white' font-family='Arial' font-size='22' text-anchor='middle' dominant-baseline='middle'>FAO Grantees Map</text></svg>" alt="FAO Grantees" width="100%" height="100%">
-                    <ol>
-                        <li>If you want to find a particular organization, type its name in the search bar and the list will update.</li>
-                        <li>Click on the list and the organization will be highlighted in the map and this section will show information on that organization.</li>
-                        <li>You can also hover over any point the map to see information.</li>
-                    </ol>
+                <div class="card mb-3">
+                    <div class="card-body" id="info">
+                        <p class="text-muted mb-0">Hover over a cluster or click an organization in the list to see its details here.</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -270,7 +253,7 @@
     function highlightFeature(e) {
         highlightLayer = e.target;
 
-        b = L.DomUtil.get('bio');
+        b = L.DomUtil.get('info');
         b.innerHTML = bio_table_generator(highlightLayer.feature);
         // debugger;
 
@@ -372,67 +355,42 @@
     });
     map.addControl(search);
 
-    // Hover a cluster: <6 -> fan children into a hexagon (orange pins) joined to center;
-    // >=6 -> show a "too many points" message at the center.
-    var hoverLayer = L.layerGroup().addTo(map);
-    // suppress the default hover coverage polygon (keep the event, drop the shape)
+    // Suppress the default hover coverage polygon so only the right-panel list shows.
     clusters_Grantees._showCoverage = function() {};
     clusters_Grantees._hideCoverage = function() {};
-    function showHexagon(cluster) {
-        hoverLayer.clearLayers();
-        var center = cluster.getLatLng();
-        var n = cluster.getChildCount();
-        if (n >= 6) {
-            // too many points: show an orange message at the cluster center
-            var msg = L.marker(center, {
-                icon: L.divIcon({
-                    html: '<div class="grantee-toomany">' + n + ' points — zoom in to explore</div>',
-                    className: 'grantee-toomany-wrap',
-                    iconSize: [0, 0]
-                }),
-                interactive: false
-            });
-            hoverLayer.addLayer(msg);
-            return;
-        }
-        // <6: fan the children into a hexagon around the center, joined by legs
+    // Build the right-panel ("#info") list of organizations in a cluster, using the
+    // SAME table format as bio_table_generator so it mirrors individual-node display.
+    function clusterOrgTableHTML(cluster) {
         var kids = cluster.getAllChildMarkers();
-        var radius = 70;                                  // px from cluster center to each pin
-        var cpt = map.latLngToLayerPoint(center);
-        kids.forEach(function(m, i) {
-            var ang = (Math.PI / 3) * i - Math.PI / 2;    // 6 vertices, start at top
-            var pt = cpt.add([radius * Math.cos(ang), radius * Math.sin(ang)]);
-            var ll = map.layerPointToLatLng(pt);
-            // orange leg from cluster center to this pin
-            L.polyline([center, ll], {
-                color: '#e67e22', weight: 2, opacity: 0.85, interactive: false
-            }).addTo(hoverLayer);
-            var mk = L.marker(ll, {
-                icon: L.divIcon({
-                    html: '<div class="org-pin-orange"></div>',
-                    className: 'org-pin-orange-wrap',
-                    iconSize: [24, 24]
-                })
-            });
-            var t = m.feature ? m.feature.properties : null;
-            if (t) {
-                mk.bindTooltip('S.N. ' + (t.S_N != null ? t.S_N : ''), {
-                    direction: 'top', className: 'org-tip-name', offset: [0, -12]
-                });
-                mk.on('click', function() {
-                    var b = L.DomUtil.get('bio');
-                    b.innerHTML = bio_table_generator(t);
-                });
-            }
-            hoverLayer.addLayer(mk);
-        });
+        var n = kids.length;
+        var rows = kids.map(function(m) {
+            var t = m.feature ? m.feature.properties : {};
+            var sn = (t && t.S_N != null) ? t.S_N : '';
+            var name = (t && t.Name_of_Organization) ? t.Name_of_Organization : '(unknown)';
+            var loc = (t && t.Location) ? t.Location : '';
+            var grant = (t && t.Type_of_Grant) ? t.Type_of_Grant : '';
+            var comm = (t && t.Commodities) ? t.Commodities : '';
+            return '<div class="org-card">' +
+                '<table class="table">' +
+                '<tr><td colspan="2"><strong>S.N.</strong> ' + sn + '</td></tr>' +
+                '<tr><td colspan="2"><strong>Organization</strong><br />' + name + '</td></tr>' +
+                '<tr><th scope="row">Location</th><td>' + loc + '</td></tr>' +
+                '<tr><th scope="row">Type of Grant</th><td>' + grant + '</td></tr>' +
+                '<tr><th scope="row">Commodities / Enterprises</th><td>' + comm + '</td></tr>' +
+                '</table>' +
+                '</div>';
+        }).join('');
+        return '<div class="row"><div class="col-12">' +
+            '<p class="text-muted mb-1">Cluster — ' + n + ' organization' + (n === 1 ? '' : 's') + '</p>' +
+            rows +
+            '</div></div>';
     }
     // A real mouse hover over a cluster icon emits 'clustermouseover'/'clustermouseout'.
-    // (The plugin only renames those to 'clusterclustermouseover' when you call cg.fire() with a
-    //  MarkerCluster as the layer — which is not what a real DOM hover does, so bind to the plain names.)
-    clusters_Grantees.on('clustermouseover', function(e) { showHexagon(e.layer); });
-    clusters_Grantees.on('clustermouseout', function() { hoverLayer.clearLayers(); });
-    map.on('zoomstart movestart', function() { hoverLayer.clearLayers(); });
+    // Show the member organizations in the same table format as individual nodes.
+    clusters_Grantees.on('clustermouseover', function(e) {
+        var b = L.DomUtil.get('info');
+        b.innerHTML = clusterOrgTableHTML(e.layer);
+    });
     var baseLayers = {
         "Satellite (Esri)": layer_EsriImagery,
         "OpenStreetMap ": layer_OSMStandard_0,
@@ -530,7 +488,7 @@
         $loc = search._getLocation(data[1]);
         search.showLocation($loc, data[1]);
         let s = search._recordsFromLayer()[data[1]];
-        b = L.DomUtil.get('bio');
+        b = L.DomUtil.get('info');
         b.innerHTML = bio_table_generator(s.layer.feature);
     });
     // var maintable = $('#mainTable').DataTable({

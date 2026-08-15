@@ -21,34 +21,174 @@
     <!-- Custom styles for this template-->
     <link href="css/sb-admin.css" rel="stylesheet">
 
+    <!-- Preconnect to CDN for faster resource loading -->
+    <link rel="preconnect" href="https://cdn.polyfill.io">
+    <link rel="preconnect" href="https://tile.openstreetmap.org">
+    <link rel="preconnect" href="https://server.arcgisonline.com">
+
+    <!-- Critical scripts loaded synchronously -->
     <script src="js/jquery.min.js"></script>
-    <script src="js/bootstrap.bundle.min.js"></script>
-    <script src="js/jquery.dataTables.js"></script>
-    <script src="js/dataTables.bootstrap4.js"></script>
-
-    <script src="js/qgis2web_expressions.js"></script>
     <script src="js/leaflet.js"></script>
-    <script src="js/leaflet.rotatedMarker.js"></script>
-    <script src="js/leaflet.pattern.js"></script>
-    <script src="js/leaflet-hash.js"></script>
-    <script src="js/Autolinker.min.js"></script>
-    <script src="js/rbush.min.js"></script>
-    <script src="js/labelgun.min.js"></script>
-    <script src="js/labels.js"></script>
-    <script src="js/leaflet-search.js"></script>
     <script src="js/leaflet.markercluster.js"></script>
-    <script src="data/Grantees.js"></script>
-
-    <script src="https://cdn.polyfill.io/v2/polyfill.min.js?features=Promise"></script>
-    <script src="js/leaflet-timeline-slider.js"></script>
-    <script src="js/vendor/chart.umd.js"></script>
-    <script src="js/vendor/d3.v7.min.js"></script>
-    <script src="js/vendor/d3-sankey.min.js"></script>
+    
+    <!-- Non-critical scripts deferred for faster initial render -->
+    <script defer src="js/bootstrap.bundle.min.js"></script>
+    <script defer src="js/jquery.dataTables.js"></script>
+    <script defer src="js/dataTables.bootstrap4.js"></script>
+    <script defer src="js/qgis2web_expressions.js"></script>
+    <script defer src="js/leaflet.rotatedMarker.js"></script>
+    <script defer src="js/leaflet.pattern.js"></script>
+    <script defer src="js/leaflet-hash.js"></script>
+    <script defer src="js/Autolinker.min.js"></script>
+    <script defer src="js/rbush.min.js"></script>
+    <script defer src="js/labelgun.min.js"></script>
+    <script defer src="js/labels.js"></script>
+    <script defer src="js/leaflet-search.js"></script>
+    <script defer src="data/Grantees.js"></script>
+    <script defer src="js/leaflet-timeline-slider.js"></script>
+    <script defer src="js/vendor/chart.umd.js"></script>
+    <script defer src="js/vendor/d3.v7.min.js"></script>
+    <script defer src="js/vendor/d3-sankey.min.js"></script>
+    
+    <!-- Polyfill loaded asynchronously to not block rendering -->
+    <script async src="https://cdn.polyfill.io/v2/polyfill.min.js?features=Promise"></script>
     <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        
         #map {
-            width: 100%;
-            height: 575px;
-            position: relative;
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        
+        /* Page title overlay */
+        .page-title-overlay {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        
+        /* Collapsible panel base styles */
+        .map-panel {
+            position: fixed;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .map-panel.collapsed {
+            transform: translateX(-100%);
+        }
+        
+        .map-panel.right-panel.collapsed {
+            transform: translateX(100%);
+        }
+        
+        .map-panel.bottom-panel.collapsed {
+            transform: translateY(100%);
+        }
+        
+        .panel-toggle-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #0070b6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            width: 24px;
+            height: 60px;
+            cursor: pointer;
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            transition: background 0.2s;
+        }
+        
+        .panel-toggle-btn:hover {
+            background: #005a93;
+        }
+        
+        .left-panel .panel-toggle-btn {
+            right: -24px;
+            border-radius: 0 4px 4px 0;
+        }
+        
+        .right-panel .panel-toggle-btn {
+            left: -24px;
+            border-radius: 4px 0 0 4px;
+        }
+        
+        .bottom-panel .panel-toggle-btn {
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 24px;
+            border-radius: 4px 4px 0 0;
+        }
+        
+        .panel-content {
+            padding: 15px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        
+        .panel-header {
+            font-size: 16px;
+            font-weight: bold;
+            color: #0070b6;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #ced4da;
+        }
+        
+        /* Left panel (Grantees list) */
+        #leftPanel {
+            top: 80px;
+            left: 10px;
+            width: 280px;
+            bottom: 100px;
+        }
+        
+        /* Right panel (Details) */
+        #rightPanel {
+            top: 80px;
+            right: 10px;
+            width: 320px;
+            bottom: 100px;
+        }
+        
+        /* Bottom panel (Aggregate, Timeline, Table) */
+        #bottomPanel {
+            left: 10px;
+            right: 10px;
+            bottom: 0;
+            height: 350px;
+            border-radius: 8px 8px 0 0;
         }
         
         .info {
@@ -198,116 +338,97 @@
             z-index: 5;
         }
         .panel-close:hover { color: #005a93; }
-        /* ---- Viewport-height caps with internal scrolling ----
-           Both the right "Details" panel and the below-map "Aggregate" panel
-           get this class so long content (big cluster lists, many charts /
-           overview rows) scrolls inside the card body instead of pushing the
-           page beyond the visible screen. 80vh leaves room for the page
-           heading and margins. The scroll is on .card-body only. */
-        .panel-scroll {
-            max-height: 80vh;
-            display: flex;
-            flex-direction: column;
-            position: relative;
-        }
-        .panel-scroll > .card-body {
-            overflow-y: auto;
-        }
-        .panel-info { max-height: 575px; }
     </style>
     <title>FAO Grantees Map</title>
 </head>
 
 <body>
 
-    <div>
-        <div class='row'>
-            <div class="col-12">
-                <span style="font-size: 40px;
-                text-shadow: -2px -2px 2px black;">FAO </span><span style="
-                color: #0070b6;
-                font-size: 40px;
-                text-shadow: -2px -2px 2px #0070b6; ">Grantees
-                </span>
-            </div>
-        </div>
-        <br>
-        <div class='row'>
-            <div class="col-sm-3 col-md-3" style="flex:0 0 20%;max-width:20%;">
-                <div class="card mb-3">
-                    <!-- <div class="card-header">
-                                <i class="fas fa-table"></i> Click the list to view in map
-                            </div> -->
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
+    <!-- Page title overlay -->
+    <div class="page-title-overlay">
+        <span style="font-size: 28px; text-shadow: -2px -2px 2px black;">FAO </span>
+        <span style="color: #0070b6; font-size: 28px; text-shadow: -2px -2px 2px #0070b6;">Grantees</span>
+    </div>
 
-            <div class="col-sm-6 col-md-6" style="flex:0 0 50%;max-width:50%;">
-                <span style="font-size: 20px;color: #0070b6;text-shadow: -1px -1px 1px #0070b6;">View on </span>
-                <span style="color: brown; font-size: 20px;text-shadow: -1px -1px 1px black;">Map</span>
-                <div id="map" style="border: #ced4da 1px solid">
-                    <div id="granteeFilterBar" class="grantee-filter"></div>
-                </div>
+    <!-- Full-screen map -->
+    <div id="map">
+        <div id="granteeFilterBar" class="grantee-filter"></div>
+    </div>
+
+    <!-- Left Panel (Grantees list) -->
+    <div id="leftPanel" class="map-panel left-panel">
+        <button class="panel-toggle-btn" onclick="togglePanel('leftPanel')" title="Toggle Grantees List">
+            <span id="leftPanelArrow">›</span>
+        </button>
+        <div class="panel-content">
+            <div class="panel-header">Grantees List</div>
+            <div class="table-responsive">
+                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0"></table>
             </div>
-            <div class="col-sm-3 col-md-3" style="flex:0 0 30%;max-width:30%;">
-                <span style="font-size: 20px;color: #0070b6;text-shadow: -1px -1px 1px #0070b6;">Click on map </span>
-                <span style="color: brown; font-size: 20px; text-shadow: -1px -1px 1px black; ">to see Info</span>
-                <div class="card mb-3 panel-scroll panel-info">
-                    <div class="card-body">
-                        <h6 class="text-muted mb-1">Details</h6>
-                        <div id="aggregate">
-                            <p class="text-muted mb-0">Click a boundary (country / province / district) to see an overview.</p>
-                        </div>
-                    </div>
-                    <button type="button" class="panel-close" title="Close" aria-label="Close" onclick="this.closest('.card').style.display='none'">×</button>
-                </div>
-            </div>
-        </div>
-        <div class='row'>
-            <div class="col-12">
-                <div class="card mb-3 panel-scroll">
-                    <div class="card-body">
-                        <h5>Aggregate</h5>
-                        <div id="aggOverview"></div>
-                        <div><strong>Type of Grant (pie)</strong><canvas id="chartPie"></canvas></div>
-                        <div><strong>Commodities (bar)</strong><canvas id="chartBar"></canvas></div>
-                        <div><strong>Grant flow (sankey)</strong><svg id="chartSankey"></svg></div>
-                    </div>
-                    <button type="button" class="panel-close" title="Close" aria-label="Close" onclick="this.closest('.card').style.display='none'">×</button>
-                </div>
-            </div>
-        </div>
-        <div class='row'>
-            <div class="col-12">
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h5>Timeline</h5>
-                        <p class="text-muted mb-2">(no timeline data yet)</p>
-                        <input type="range" min="0" max="0" value="0" disabled style="width:100%;">
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class='row'>
-            <div class="col ">
-                <div class="table-responsive"></div>
-                <table class="table table-bordered" id="mainTable" width="100%" cellspacing="0"></table>
-            </div>
-            <!-- <div class="col "></div> -->
         </div>
     </div>
-    <!-- <iframe src="https://www.google.com/maps/embed?pb=!4v1564128406600!6m8!1m7!1stxEy7qZUuLd08lRVj1qCnw!2m2!1d42.70544377507082!2d-73.73282308149905!3f322.23315604397925!4f-14.34653017062999!5f0.7820865974627469 " width="600 " height="450
-                " frameborder="0 " style="border:0 " allowfullscreen></iframe> -->
 
+    <!-- Right Panel (Details) -->
+    <div id="rightPanel" class="map-panel right-panel">
+        <button class="panel-toggle-btn" onclick="togglePanel('rightPanel')" title="Toggle Details">
+            <span id="rightPanelArrow">‹</span>
+        </button>
+        <div class="panel-content">
+            <div class="panel-header">Details</div>
+            <div id="aggregate">
+                <p class="text-muted mb-0">Click a boundary (country / province / district) to see an overview.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Panel (Aggregate, Timeline, Table) -->
+    <div id="bottomPanel" class="map-panel bottom-panel">
+        <button class="panel-toggle-btn" onclick="togglePanel('bottomPanel')" title="Toggle Bottom Panel">
+            <span id="bottomPanelArrow">⌃</span>
+        </button>
+        <div class="panel-content">
+            <div class="panel-header">Aggregate</div>
+            <div id="aggOverview"></div>
+            <div><strong>Type of Grant (pie)</strong><canvas id="chartPie"></canvas></div>
+            <div><strong>Commodities (bar)</strong><canvas id="chartBar"></canvas></div>
+            <div><strong>Grant flow (sankey)</strong><svg id="chartSankey"></svg></div>
+            
+            <div class="panel-header" style="margin-top: 15px;">Timeline</div>
+            <p class="text-muted mb-2">(no timeline data yet)</p>
+            <input type="range" min="0" max="0" value="0" disabled style="width:100%;">
+            
+            <div class="panel-header" style="margin-top: 15px;">Data Table</div>
+            <table class="table table-bordered" id="mainTable" width="100%" cellspacing="0"></table>
+        </div>
+    </div>
+
+    <!-- Defer myFuncs.js until after DOM is ready since it's used by inline scripts below -->
+    <script defer src="js/myFuncs.js"></script>
 
 </body>
-<script src="js/myFuncs.js"></script>
 <script>
+    // Panel toggle function
+    function togglePanel(panelId) {
+        var panel = document.getElementById(panelId);
+        var arrow = document.getElementById(panelId + 'Arrow');
+        panel.classList.toggle('collapsed');
+        
+        if (panelId === 'leftPanel') {
+            arrow.textContent = panel.classList.contains('collapsed') ? '›' : '‹';
+        } else if (panelId === 'rightPanel') {
+            arrow.textContent = panel.classList.contains('collapsed') ? '‹' : '›';
+        } else if (panelId === 'bottomPanel') {
+            arrow.textContent = panel.classList.contains('collapsed') ? '⌃' : '⌄';
+        }
+        
+        // Invalidate map size after panel transition
+        setTimeout(function() {
+            map.invalidateSize();
+        }, 300);
+    }
+    
+    // Wait for DOMContentLoaded to ensure all deferred scripts and DOM are ready
+    document.addEventListener('DOMContentLoaded', function() {
     var highlightLayer;
 
     function highlightFeature(e) {
@@ -315,7 +436,9 @@
 
         b = L.DomUtil.get('aggregate');
         b.innerHTML = bio_table_generator(highlightLayer.feature);
-        b.closest('.card').style.display = '';
+        // Show the right panel when clicking on a feature
+        var rightPanel = document.getElementById('rightPanel');
+        rightPanel.classList.remove('collapsed');
         // debugger;
 
         // if (e.target.feature.geometry.type === 'LineString') {
@@ -451,7 +574,9 @@
     clusters_Grantees.on('clustermouseover', function(e) {
         var b = L.DomUtil.get('aggregate');
         b.innerHTML = clusterOrgTableHTML(e.layer);
-        b.closest('.card').style.display = '';
+        // Show the right panel when hovering over a cluster
+        var rightPanel = document.getElementById('rightPanel');
+        rightPanel.classList.remove('collapsed');
     });
     var baseLayers = {
         "Satellite (Esri)": layer_EsriImagery,
@@ -703,7 +828,9 @@
         let s = search._recordsFromLayer()[data[1]];
         b = L.DomUtil.get('aggregate');
         b.innerHTML = bio_table_generator(s.layer.feature);
-        b.closest('.card').style.display = '';
+        // Show the right panel when searching
+        var rightPanel = document.getElementById('rightPanel');
+        rightPanel.classList.remove('collapsed');
     });
     // var maintable = $('#mainTable').DataTable({
     //     data: $data_table,
@@ -718,6 +845,7 @@
     //     "paging": true,
     //     "pagingType": "numbers"
     // });
+});
 </script>
 
 </html>

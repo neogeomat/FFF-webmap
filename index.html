@@ -151,6 +151,36 @@
             border-radius: 4px 4px 0 0;
         }
         
+        /* Persistent pinned edge tabs: the toggle button is a sibling of the
+           sliding panel, so it stays on the viewport edge and remains
+           clickable even when the panel is collapsed. */
+        #leftPanelToggle {
+            position: fixed;
+            left: 0;
+            top: 80px;
+            transform: none;
+            border-radius: 0 4px 4px 0;
+        }
+        
+        #rightPanelToggle {
+            position: fixed;
+            right: 0;
+            top: 80px;
+            transform: none;
+            border-radius: 4px 0 0 4px;
+        }
+        
+        #bottomPanelToggle {
+            position: fixed;
+            bottom: 0;
+            top: auto;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 24px;
+            border-radius: 4px 4px 0 0;
+        }
+        
         .panel-content {
             padding: 15px;
             overflow-y: auto;
@@ -356,10 +386,10 @@
     </div>
 
     <!-- Left Panel (Grantees list) -->
-    <div id="leftPanel" class="map-panel left-panel">
-        <button class="panel-toggle-btn" onclick="togglePanel('leftPanel')" title="Toggle Grantees List">
-            <span id="leftPanelArrow">›</span>
-        </button>
+    <button class="panel-toggle-btn" id="leftPanelToggle" onclick="togglePanel('leftPanel')" title="Toggle Grantees List">
+        <span id="leftPanelArrow">›</span>
+    </button>
+    <div id="leftPanel" class="map-panel left-panel collapsed">
         <div class="panel-content">
             <div class="panel-header">Grantees List</div>
             <div class="table-responsive">
@@ -369,10 +399,10 @@
     </div>
 
     <!-- Right Panel (Details) -->
-    <div id="rightPanel" class="map-panel right-panel">
-        <button class="panel-toggle-btn" onclick="togglePanel('rightPanel')" title="Toggle Details">
-            <span id="rightPanelArrow">‹</span>
-        </button>
+    <button class="panel-toggle-btn" id="rightPanelToggle" onclick="togglePanel('rightPanel')" title="Toggle Details">
+        <span id="rightPanelArrow">‹</span>
+    </button>
+    <div id="rightPanel" class="map-panel right-panel collapsed">
         <div class="panel-content">
             <div class="panel-header">Details</div>
             <div id="aggregate">
@@ -382,10 +412,10 @@
     </div>
 
     <!-- Bottom Panel (Aggregate, Timeline, Table) -->
-    <div id="bottomPanel" class="map-panel bottom-panel">
-        <button class="panel-toggle-btn" onclick="togglePanel('bottomPanel')" title="Toggle Bottom Panel">
-            <span id="bottomPanelArrow">⌃</span>
-        </button>
+    <button class="panel-toggle-btn" id="bottomPanelToggle" onclick="togglePanel('bottomPanel')" title="Toggle Bottom Panel">
+        <span id="bottomPanelArrow">⌃</span>
+    </button>
+    <div id="bottomPanel" class="map-panel bottom-panel collapsed">
         <div class="panel-content">
             <div class="panel-header">Aggregate</div>
             <div id="aggOverview"></div>
@@ -423,7 +453,8 @@
         
         // Invalidate map size after panel transition
         setTimeout(function() {
-            map.invalidateSize();
+            var m = (typeof map !== 'undefined' && map instanceof L.Map) ? map : L.map.instances[0];
+            if (m && m.invalidateSize) { m.invalidateSize(); }
         }, 300);
     }
     
@@ -436,9 +467,6 @@
 
         b = L.DomUtil.get('aggregate');
         b.innerHTML = bio_table_generator(highlightLayer.feature);
-        // Show the right panel when clicking on a feature
-        var rightPanel = document.getElementById('rightPanel');
-        rightPanel.classList.remove('collapsed');
         // debugger;
 
         // if (e.target.feature.geometry.type === 'LineString') {
@@ -574,9 +602,6 @@
     clusters_Grantees.on('clustermouseover', function(e) {
         var b = L.DomUtil.get('aggregate');
         b.innerHTML = clusterOrgTableHTML(e.layer);
-        // Show the right panel when hovering over a cluster
-        var rightPanel = document.getElementById('rightPanel');
-        rightPanel.classList.remove('collapsed');
     });
     var baseLayers = {
         "Satellite (Esri)": layer_EsriImagery,
@@ -636,8 +661,6 @@
             });
         });
     })();
-</script>
-<script>
     // Boundary overlays loaded from the committed .geojson files. The geometry is
     // fetched (not embedded) so the large data files are not duplicated into JS.
     // District and Province are toggleable overlays (default off); Country is always visible.
@@ -682,7 +705,8 @@
             if (!el) { return; }
             el.innerHTML = '<p class="mb-0"><strong>' + title + '</strong><br />' +
                 '<span class="text-muted">' + msg + '</span></p>';
-            el.closest('.card').style.display = '';
+            var card = el.closest('.card');
+            if (card) { card.style.display = ''; }
         }
 
         Promise.all(specs.map(function(spec) {
@@ -700,8 +724,14 @@
                         onEachFeature: function(feature, lyr) {
                             lyr.on('click', function() {
                                 var n = (geojson && geojson.features) ? geojson.features.length : null;
-                                var msg = 'No detailed data available yet.';
-                                if (n !== null) { msg += ' ' + n + ' feature(s) in this layer.'; }
+                                var msg;
+                                if (spec.layerVar === 'layer_District') {
+                                    msg = 'Outlines Nepal’s ' + n + ' districts. Grantee-level detail isn’t wired in yet, so for now this is just the shape of the country at its finest grain.';
+                                } else if (spec.layerVar === 'layer_Province') {
+                                    msg = n + ' provinces, drawn out. The per-province grantee breakdown hasn’t been loaded, but the outlines are here.';
+                                } else {
+                                    msg = 'The national boundary. Once the dataset lands, this panel will show country-level totals instead of this placeholder.';
+                                }
                                 showOverview(spec.label, msg);
                             });
                         }
@@ -745,8 +775,7 @@
             }
         });
     })();
-</script>
-<script>
+
     // Aggregate panel: empty placeholder charts (no real data yet).
     // Chart.js, d3 and d3.sankey are loaded from js/vendor/* in <head>.
     (function() {
@@ -787,8 +816,7 @@
                 .text('No grant flow data yet');
         }
     })();
-</script>
-<script>
+
     // $table = $('#sidebar table>tbody');
     $table = $('#dataTable');
     $col_to_show = ['S_N', 'Name_of_Organization'];
@@ -828,9 +856,6 @@
         let s = search._recordsFromLayer()[data[1]];
         b = L.DomUtil.get('aggregate');
         b.innerHTML = bio_table_generator(s.layer.feature);
-        // Show the right panel when searching
-        var rightPanel = document.getElementById('rightPanel');
-        rightPanel.classList.remove('collapsed');
     });
     // var maintable = $('#mainTable').DataTable({
     //     data: $data_table,
@@ -845,7 +870,8 @@
     //     "paging": true,
     //     "pagingType": "numbers"
     // });
-});
+
+    });  // end DOMContentLoaded
 </script>
 
 </html>

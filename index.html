@@ -100,12 +100,16 @@
             transform: translateX(-100%);
         }
         
+        .map-panel.left-panel.collapsed {
+            transform: translateX(calc(-100% - 20px));
+        }
+        
         .map-panel.right-panel.collapsed {
-            transform: translateX(100%);
+            transform: translateX(calc(100% + 20px));
         }
         
         .map-panel.bottom-panel.collapsed {
-            transform: translateY(100%);
+            transform: translateY(calc(100% + 20px));
         }
         
         .panel-toggle-btn {
@@ -116,11 +120,15 @@
             color: white;
             border: none;
             border-radius: 4px;
-            width: 24px;
+            width: auto;
+            min-width: 24px;
+            padding: 0 8px;
             height: 60px;
             cursor: pointer;
             z-index: 1001;
             display: flex;
+            flex-direction: row;
+            gap: 4px;
             align-items: center;
             justify-content: center;
             font-size: 16px;
@@ -146,14 +154,12 @@
             top: -30px;
             left: 50%;
             transform: translateX(-50%);
-            width: 60px;
+            width: auto;
+            min-width: 60px;
             height: 24px;
+            padding: 0 10px;
             border-radius: 4px 4px 0 0;
         }
-        
-        /* Persistent pinned edge tabs: the toggle button is a sibling of the
-           sliding panel, so it stays on the viewport edge and remains
-           clickable even when the panel is collapsed. */
         #leftPanelToggle {
             position: fixed;
             left: 0;
@@ -161,24 +167,27 @@
             transform: none;
             border-radius: 0 4px 4px 0;
         }
-        
         #rightPanelToggle {
             position: fixed;
-            right: 0;
+            right: 10px;
             top: 80px;
             transform: none;
             border-radius: 4px 0 0 4px;
         }
-        
         #bottomPanelToggle {
             position: fixed;
             bottom: 0;
             top: auto;
             left: 50%;
             transform: translateX(-50%);
-            width: 60px;
-            height: 24px;
+            width: auto;
+            height: 28px;
             border-radius: 4px 4px 0 0;
+        }
+        .gf-label {
+            font-size: 13px;
+            font-weight: normal;
+            white-space: nowrap;
         }
         
         .panel-content {
@@ -300,6 +309,12 @@
             font: bold 14px/18px Arial, Helvetica, sans-serif;
             color: #1a3c5e;
         }
+        /* Visual separator between filter groups (Type of Grant vs Boundary layers) */
+        .gf-group-sep {
+            border-left: 2px solid #ced4da;
+            margin-left: 12px;
+            padding-left: 14px;
+        }
         /* Each value: rectangular box with curved (pill) sides + check mark */
         .grantee-filter label.gf-value {
             display: inline-flex;
@@ -387,7 +402,7 @@
 
     <!-- Left Panel (Grantees list) -->
     <button class="panel-toggle-btn" id="leftPanelToggle" onclick="togglePanel('leftPanel')" title="Toggle Grantees List">
-        <span id="leftPanelArrow">›</span>
+        <span id="leftPanelArrow">›</span> <span class="gf-label">Grantees</span>
     </button>
     <div id="leftPanel" class="map-panel left-panel collapsed">
         <div class="panel-content">
@@ -400,7 +415,7 @@
 
     <!-- Right Panel (Details) -->
     <button class="panel-toggle-btn" id="rightPanelToggle" onclick="togglePanel('rightPanel')" title="Toggle Details">
-        <span id="rightPanelArrow">‹</span>
+        <span id="rightPanelArrow">‹</span> <span class="gf-label">Details</span>
     </button>
     <div id="rightPanel" class="map-panel right-panel collapsed">
         <div class="panel-content">
@@ -412,10 +427,10 @@
     </div>
 
     <!-- Bottom Panel (Aggregate, Timeline, Table) -->
-    <button class="panel-toggle-btn" id="bottomPanelToggle" onclick="togglePanel('bottomPanel')" title="Toggle Bottom Panel">
-        <span id="bottomPanelArrow">⌃</span>
-    </button>
     <div id="bottomPanel" class="map-panel bottom-panel collapsed">
+        <button class="panel-toggle-btn" id="bottomPanelToggle" onclick="togglePanel('bottomPanel')" title="Toggle Bottom Panel">
+            <span id="bottomPanelArrow">⌃</span> <span class="gf-label">Aggregate</span>
+        </button>
         <div class="panel-content">
             <div class="panel-header">Aggregate</div>
             <div id="aggOverview"></div>
@@ -559,13 +574,6 @@
     clusters_Grantees.addLayer(layer_Grantees);
     bounds_group.addLayer(clusters_Grantees);
     setBounds();
-    let search = new L.Control.Search({
-        layer: clusters_Grantees,
-        initial: false,
-        hideMarkerOnCollapse: true,
-        propertyName: 'Name_of_Organization'
-    });
-    map.addControl(search);
 
     // Suppress the default hover coverage polygon so only the right-panel list shows.
     clusters_Grantees._showCoverage = function() {};
@@ -613,10 +621,8 @@
         "Organizations": clusters_Grantees
     };
     var layerControl = L.control.layers(baseLayers, overlays, {
-        collapsed: false
+        // collapsed: false
     }).addTo(map);
-    document.getElementsByClassName('search-button')[0].className +=
-        ' fa fa-binoculars';
 
     // Filter organizations by Type_of_Grant - top horizontal bar (not a map control)
     (function() {
@@ -628,13 +634,14 @@
             counts[t] = (counts[t] || 0) + 1;
         });
         var types = Object.keys(counts).sort();
-        var html = '<span class="gf-title">Filter by Type of Grant</span>';
+        var html = '<span class="gf-title">Type of Grant</span>';
         types.forEach(function(t) {
             html += '<label class="gf-value checked">' +
                         '<input type="checkbox" class="gf-type" value="' + t + '" checked>' +
                         '<span class="gf-box">&#10003;</span>' +
                         '<span>' + t + ' (' + counts[t] + ')</span>' +
-                    '</label>';
+                    '</label>' +
+                    '<br>';
         });
         bar.innerHTML = html;
         var apply = function() {
@@ -751,11 +758,13 @@
                 var district = window.json_District ? window.json_District.features.length : 0;
                 var province = window.json_Province ? window.json_Province.features.length : 0;
                 bar.insertAdjacentHTML('beforeend',
-                    '<span class="gf-title">Boundary layers</span>' +
-                    '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_District">' +
-                    '<span class="gf-box">&#10003;</span><span>District boundaries (' + district + ')</span></label>' +
-                    '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_Province">' +
-                    '<span class="gf-box">&#10003;</span><span>Province boundaries (' + province + ')</span></label>'
+                    '<span class="gf-group-sep">' +
+                        '<span class="gf-title">Filter by</span>' +
+                        '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_District">' +
+                        '<span class="gf-box">&#10003;</span><span>District boundaries (' + district + ')</span></label>' +
+                        '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_Province">' +
+                        '<span class="gf-box">&#10003;</span><span>Province boundaries (' + province + ')</span></label>' +
+                    '</span>'
                 );
                 bar.querySelectorAll('.gf-boundary').forEach(function(cb) {
                     var lbl = cb.closest('label.gf-value');
@@ -848,14 +857,11 @@
     });
     $('#dataTable tbody').on('click', 'tr', function() {
         var data = table.row(this).data();
-        // alert('You clicked on ' + data[0] + '\'s row');
-        // console.log(data);
-        search._fillRecordsCache()
-        $loc = search._getLocation(data[1]);
-        search.showLocation($loc, data[1]);
-        let s = search._recordsFromLayer()[data[1]];
+        var clickedName = data[1];
+        var feat = null;
+        layer_Grantees.eachLayer(function(l){ if (l.feature && l.feature.properties.Name_of_Organization === clickedName) feat = l.feature; });
         b = L.DomUtil.get('aggregate');
-        b.innerHTML = bio_table_generator(s.layer.feature);
+        if (feat) { b.innerHTML = bio_table_generator(feat); }
     });
     // var maintable = $('#mainTable').DataTable({
     //     data: $data_table,

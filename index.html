@@ -101,15 +101,15 @@
         }
         
         .map-panel.left-panel.collapsed {
-            transform: translateX(calc(-100% - 20px));
+            transform: translateX(calc(-100% - 10px));
         }
-        
+
         .map-panel.right-panel.collapsed {
-            transform: translateX(calc(100% + 20px));
+            transform: translateX(calc(100% + 10px));
         }
-        
+
         .map-panel.bottom-panel.collapsed {
-            transform: translateY(calc(100% + 20px));
+            transform: translateY(100%);
         }
         
         .panel-toggle-btn {
@@ -140,48 +140,38 @@
             background: #005a93;
         }
         
+        /* Toggle buttons ride on their panel (children of .map-panel) and
+           protrude just past the panel's screen-facing edge, so the panel can
+           slide fully off-screen while only the button tab stays visible. */
         .left-panel .panel-toggle-btn {
-            right: -24px;
+            position: absolute;
+            right: -85px;
+            top: 50%;
+            left: auto;
+            bottom: auto;
+            transform: translateY(-50%);
             border-radius: 0 4px 4px 0;
         }
-        
         .right-panel .panel-toggle-btn {
-            left: -24px;
+            position: absolute;
+            left: -85px;
+            top: 50%;
+            right: auto;
+            bottom: auto;
+            transform: translateY(-50%);
             border-radius: 4px 0 0 4px;
         }
-        
         .bottom-panel .panel-toggle-btn {
+            position: absolute;
             top: -30px;
             left: 50%;
+            right: auto;
+            bottom: auto;
             transform: translateX(-50%);
             width: auto;
             min-width: 60px;
-            height: 24px;
-            padding: 0 10px;
-            border-radius: 4px 4px 0 0;
-        }
-        #leftPanelToggle {
-            position: fixed;
-            left: 0;
-            top: 80px;
-            transform: none;
-            border-radius: 0 4px 4px 0;
-        }
-        #rightPanelToggle {
-            position: fixed;
-            right: 10px;
-            top: 80px;
-            transform: none;
-            border-radius: 4px 0 0 4px;
-        }
-        #bottomPanelToggle {
-            position: fixed;
-            bottom: 0;
-            top: auto;
-            left: 50%;
-            transform: translateX(-50%);
-            width: auto;
             height: 28px;
+            padding: 0 10px;
             border-radius: 4px 4px 0 0;
         }
         .gf-label {
@@ -401,10 +391,10 @@
     </div>
 
     <!-- Left Panel (Grantees list) -->
-    <button class="panel-toggle-btn" id="leftPanelToggle" onclick="togglePanel('leftPanel')" title="Toggle Grantees List">
-        <span id="leftPanelArrow">›</span> <span class="gf-label">Grantees</span>
-    </button>
     <div id="leftPanel" class="map-panel left-panel collapsed">
+        <button class="panel-toggle-btn" id="leftPanelToggle" onclick="togglePanel('leftPanel')" title="Toggle Grantees List">
+            <span id="leftPanelArrow">›</span> <span class="gf-label">Grantees</span>
+        </button>
         <div class="panel-content">
             <div class="panel-header">Grantees List</div>
             <div class="table-responsive">
@@ -414,10 +404,10 @@
     </div>
 
     <!-- Right Panel (Details) -->
-    <button class="panel-toggle-btn" id="rightPanelToggle" onclick="togglePanel('rightPanel')" title="Toggle Details">
-        <span id="rightPanelArrow">‹</span> <span class="gf-label">Details</span>
-    </button>
     <div id="rightPanel" class="map-panel right-panel collapsed">
+        <button class="panel-toggle-btn" id="rightPanelToggle" onclick="togglePanel('rightPanel')" title="Toggle Details">
+            <span id="rightPanelArrow">‹</span> <span class="gf-label">Details</span>
+        </button>
         <div class="panel-content">
             <div class="panel-header">Details</div>
             <div id="aggregate">
@@ -572,6 +562,7 @@
         }
     });
     clusters_Grantees.addLayer(layer_Grantees);
+    clusters_Grantees.addTo(map);   // Organizations layer on by default
     bounds_group.addLayer(clusters_Grantees);
     setBounds();
 

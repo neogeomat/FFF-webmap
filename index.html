@@ -663,11 +663,12 @@
     // fetched (not embedded) so the large data files are not duplicated into JS.
     // District and Province are toggleable overlays (default off); Country is always visible.
     (function() {
-        ['District', 'Province', 'Nepal'].forEach(function(name) {
+        ['District', 'Province', 'Chure', 'Nepal'].forEach(function(name) {
             map.createPane('pane_' + name);
         });
         map.getPane('pane_District').style.zIndex = 410;
         map.getPane('pane_Province').style.zIndex = 420;
+        map.getPane('pane_Chure').style.zIndex = 425;
         map.getPane('pane_Nepal').style.zIndex = 430;
 
         var specs = [{
@@ -677,7 +678,14 @@
             label: 'District boundaries',
             pane: 'pane_District',
             color: '#3388ff',
-            weight: 1.5
+            weight: 1.5,
+            // Style each district by its project_area flag: 'y' (forest-fruit
+            // project area) = green, 'n' (or unset) = the default blue outline.
+            styleFn: function(feature, base) {
+                var pa = (feature && feature.properties) ? feature.properties.project_area : null;
+                var s = (pa === 'y') ? '#27ae60' : base.color;
+                return { fillOpacity: 0.12, color: s, weight: base.weight };
+            }
         }, {
             varName: 'json_Province',
             layerVar: 'layer_Province',
@@ -686,6 +694,16 @@
             pane: 'pane_Province',
             color: '#e67e22',
             weight: 2
+        }, {
+            varName: 'json_Chure',
+            layerVar: 'layer_Chure',
+            url: 'data/chureDissolved.geojson',
+            label: 'Chure boundaries',
+            pane: 'pane_Chure',
+            color: '#27ae60',
+            weight: 1.5,
+            fillOpacity: 0.12,
+            fill: true
         }, {
             varName: 'json_Nepal',
             layerVar: 'layer_Nepal',
@@ -714,19 +732,30 @@
                     window[spec.varName] = geojson;
                     var layer = L.geoJson(geojson, {
                         pane: spec.pane,
-                        style: {
-                            fillOpacity: 0,
-                            color: spec.color,
-                            weight: spec.weight
+                        style: function(feature) {
+                            var base = {
+                                fillOpacity: (feature && feature.properties && feature.properties.project_area) ? 0.12 : (spec.fillOpacity || 0),
+                                color: spec.color,
+                                weight: spec.weight
+                            };
+                            if (spec.styleFn) { return spec.styleFn(feature, base); }
+                            return base;
                         },
                         onEachFeature: function(feature, lyr) {
                             lyr.on('click', function() {
                                 var n = (geojson && geojson.features) ? geojson.features.length : null;
                                 var msg;
                                 if (spec.layerVar === 'layer_District') {
-                                    msg = 'Outlines Nepal’s ' + n + ' districts. Grantee-level detail isn’t wired in yet, so for now this is just the shape of the country at its finest grain.';
+                                    var y = 0, nn = 0;
+                                    (geojson.features || []).forEach(function(f) {
+                                        var pa = f.properties && f.properties.project_area;
+                                        if (pa === 'y') { y++; } else { nn++; }
+                                    });
+                                    msg = n + ' districts. ' + y + ' lie inside a Forest Fruit & Flora project area (green) and ' + nn + ' do not (blue).';
                                 } else if (spec.layerVar === 'layer_Province') {
                                     msg = n + ' provinces, drawn out. The per-province grantee breakdown hasn’t been loaded, but the outlines are here.';
+                                } else if (spec.layerVar === 'layer_Chure') {
+                                    msg = 'The Chure (Terai arc) physiographic belt, dissolved into a single boundary.';
                                 } else {
                                     msg = 'The national boundary. Once the dataset lands, this panel will show country-level totals instead of this placeholder.';
                                 }
@@ -748,6 +777,7 @@
             if (bar) {
                 var district = window.json_District ? window.json_District.features.length : 0;
                 var province = window.json_Province ? window.json_Province.features.length : 0;
+                var chure = window.json_Chure ? window.json_Chure.features.length : 0;
                 bar.insertAdjacentHTML('beforeend',
                     '<span class="gf-group-sep">' +
                         '<span class="gf-title">Filter by</span>' +
@@ -755,6 +785,8 @@
                         '<span class="gf-box">&#10003;</span><span>District boundaries (' + district + ')</span></label>' +
                         '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_Province">' +
                         '<span class="gf-box">&#10003;</span><span>Province boundaries (' + province + ')</span></label>' +
+                        '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_Chure">' +
+                        '<span class="gf-box">&#10003;</span><span>Chure boundaries (' + chure + ')</span></label>' +
                     '</span>'
                 );
                 bar.querySelectorAll('.gf-boundary').forEach(function(cb) {

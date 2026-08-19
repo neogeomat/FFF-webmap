@@ -765,7 +765,7 @@
                     });
                     window[spec.layerVar] = layer;
                     layerControl.addOverlay(layer, spec.label);
-                    if (spec.layerVar === 'layer_Nepal') {
+                    if (spec.layerVar === 'layer_Nepal' || spec.layerVar === 'layer_Chure') {
                         layer.addTo(map);
                     }
                 });
@@ -785,7 +785,7 @@
                         '<span class="gf-box">&#10003;</span><span>District boundaries (' + district + ')</span></label>' +
                         '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_Province">' +
                         '<span class="gf-box">&#10003;</span><span>Province boundaries (' + province + ')</span></label>' +
-                        '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_Chure">' +
+                        '<label class="gf-value checked"><input type="checkbox" class="gf-boundary" data-layer="layer_Chure" checked>' +
                         '<span class="gf-box">&#10003;</span><span>Chure boundaries (' + chure + ')</span></label>' +
                     '</span>'
                 );

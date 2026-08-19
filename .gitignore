@@ -24,6 +24,7 @@ venv/
 *.tmp
 *.swp
 *.swo
+*.qmd
 
 # Editors
 .vscode/

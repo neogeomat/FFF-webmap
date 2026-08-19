@@ -14,10 +14,10 @@ Boundary overlays load via `fetch` and are BLOCKED on `file://` — always use H
     document.querySelector('.leaflet-pane_<Name>-pane').querySelectorAll('path').length
   PANE CLASS IS `leaflet-pane_<Name>-pane` — Leaflet appends `-pane`. Using `.pane_<Name>`
   returns null/0 and gives a false "nothing rendered" reading.
-  Expected path counts: District=77, Province=7, Nepal=1 at their active zooms.
-- Toggle a layer-control checkbox, then re-measure to confirm it draws.
-- Zoom-driven layers: change zoom with the +/- buttons and re-measure which pane has paths
-  (Nepal <9, Province 9–12, District >=12).
+  Expected path counts: District=77, Province=7, Chure=1, Nepal=1. District/Province
+  start OFF — toggle their `#granteeFilterBar` checkboxes before counting; Chure and Nepal start ON.
+- Toggle a layer-control checkbox (or a `#granteeFilterBar` pill), then re-measure to confirm it draws.
+- Chure, Nepal (country), and the Organizations (grantee markers) cluster layer are ON by default.
 
 ## Gotcha: OpenCode delegation
 After `opencode run`, the edit may have landed even if the command exits non-zero from trailing

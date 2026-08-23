@@ -25,6 +25,8 @@ venv/
 *.swp
 *.swo
 *.qmd
+*.csv
+*.md
 
 # Editors
 .vscode/

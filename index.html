@@ -30,6 +30,7 @@
     <script src="js/jquery.min.js"></script>
     <script src="js/leaflet.js"></script>
     <script src="js/leaflet.markercluster.js"></script>
+    <script src="js/leaflet-ajax.min.js"></script>
     
     <!-- Non-critical scripts deferred for faster initial render -->
     <script defer src="js/bootstrap.bundle.min.js"></script>
@@ -44,7 +45,6 @@
     <script defer src="js/labelgun.min.js"></script>
     <script defer src="js/labels.js"></script>
     <script defer src="js/leaflet-search.js"></script>
-    <script defer src="data/Grantees.js"></script>
     <script defer src="js/leaflet-timeline-slider.js"></script>
     <script defer src="js/vendor/chart.umd.js"></script>
     <script defer src="js/vendor/d3.v7.min.js"></script>
@@ -305,6 +305,86 @@
             margin-left: 12px;
             padding-left: 14px;
         }
+        /* ---- Commodities dropdown filter ---- */
+        .gf-dd {
+            position: relative;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .gf-dd-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0;
+            padding: 5px 14px;
+            border: 1px solid #0070b6;
+            border-radius: 999px;            /* curved sides (pill), like gf-value */
+            background: #f3f8fc;
+            font: 13px/16px Arial, Helvetica, sans-serif;
+            color: #1a3c5e;
+            cursor: pointer;
+            user-select: none;
+        }
+        .gf-dd-toggle:hover {
+            background: #e3eef6;
+        }
+        .gf-dd-caret {
+            font-size: 11px;
+            color: #0070b6;
+            transition: transform 0.2s;
+        }
+        .gf-dd-toggle.gf-dd-active .gf-dd-caret {
+            transform: rotate(180deg);
+        }
+        .gf-dd-panel {
+            display: none;
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            z-index: 1002;                   /* above the map panes / filter bar */
+            min-width: 220px;
+            max-height: 220px;
+            overflow-y: auto;
+            background: #ffffff;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+            padding: 8px;
+        }
+        .gf-dd-panel.gf-dd-open {
+            display: block;
+        }
+        .gf-dd-panel .gf-value {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            margin-bottom: 4px;
+        }
+        .gf-dd-panel .gf-value:last-child {
+            margin-bottom: 0;
+        }
+        .gf-dd-actions {
+            display: flex;
+            gap: 8px;
+            padding-bottom: 6px;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #ced4da;
+        }
+        .gf-dd-btn {
+            border: 1px solid #0070b6;
+            background: #f3f8fc;
+            color: #0070b6;
+            border-radius: 4px;
+            padding: 2px 10px;
+            font: 12px/16px Arial, Helvetica, sans-serif;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+        .gf-dd-btn:hover {
+            background: #0070b6;
+            color: #ffffff;
+        }
         /* Each value: rectangular box with curved (pill) sides + check mark */
         .grantee-filter label.gf-value {
             display: inline-flex;
@@ -533,7 +613,11 @@
 
     map.createPane('pane_Grantees');
     map.getPane('pane_Grantees').style.zIndex = 650;
-    var layer_Grantees = new L.geoJson(json_Grantees, {
+    // Load grantee organizations asynchronously via the Leaflet-ajax plugin
+    // (L.geoJson.ajax) instead of an embedded JS blob. The geometry is fetched
+    // from data/Grantees.geojson on demand, so the points layer is built once
+    // the data:loaded event fires (see below).
+    var layer_Grantees = new L.geoJson.ajax('data/Grantees.geojson', {
         attribution: '',
         pane: 'pane_Grantees',
         onEachFeature: pop_Grantees,
@@ -561,47 +645,130 @@
             });
         }
     });
-    clusters_Grantees.addLayer(layer_Grantees);
-    clusters_Grantees.addTo(map);   // Organizations layer on by default
-    bounds_group.addLayer(clusters_Grantees);
-    setBounds();
 
-    // Suppress the default hover coverage polygon so only the right-panel list shows.
-    clusters_Grantees._showCoverage = function() {};
-    clusters_Grantees._hideCoverage = function() {};
-    // Build the right-panel ("#aggregate") list of organizations in a cluster, using the
-    // SAME table format as bio_table_generator so it mirrors individual-node display.
-    function clusterOrgTableHTML(cluster) {
-        var kids = cluster.getAllChildMarkers();
-        var n = kids.length;
-        var rows = kids.map(function(m) {
-            var t = m.feature ? m.feature.properties : {};
-            var sn = (t && t.S_N != null) ? t.S_N : '';
-            var name = (t && t.Name_of_Organization) ? t.Name_of_Organization : '(unknown)';
-            var loc = (t && t.Location) ? t.Location : '';
-            var grant = (t && t.Type_of_Grant) ? t.Type_of_Grant : '';
-            var comm = (t && t.Commodities) ? t.Commodities : '';
-            return '<div class="org-card">' +
-                '<table class="table">' +
-                '<tr><td colspan="2"><strong>S.N.</strong> ' + sn + '</td></tr>' +
-                '<tr><td colspan="2"><strong>Organization</strong><br />' + name + '</td></tr>' +
-                '<tr><th scope="row">Location</th><td>' + loc + '</td></tr>' +
-                '<tr><th scope="row">Type of Grant</th><td>' + grant + '</td></tr>' +
-                '<tr><th scope="row">Commodities / Enterprises</th><td>' + comm + '</td></tr>' +
-                '</table>' +
-                '</div>';
-        }).join('');
-        return '<div class="row"><div class="col-12">' +
-            '<p class="text-muted mb-1">Cluster — ' + n + ' organization' + (n === 1 ? '' : 's') + '</p>' +
-            rows +
-            '</div></div>';
-    }
-    // A real mouse hover over a cluster icon emits 'clustermouseover'/'clustermouseout'.
-    // Show the member organizations in the same table format as individual nodes.
-    clusters_Grantees.on('clustermouseover', function(e) {
-        var b = L.DomUtil.get('aggregate');
-        b.innerHTML = clusterOrgTableHTML(e.layer);
+    // Everything that depends on the (now async) grantee features must wait until
+    // the geojson finishes loading.
+    // organization_type is NOT on the geojson features; it lives in
+    // data/grantees_attributes.json (org_id == S_N). Fetch it once up front so the
+    // filter pills can be built after both sources are ready.
+    var attributesPromise = fetch('data/grantees_attributes.json').then(function(r) { return r.json(); });
+    layer_Grantees.on('data:loaded', function() {
+        clusters_Grantees.addLayer(layer_Grantees);
+        clusters_Grantees.addTo(map);   // Organizations layer on by default
+        bounds_group.addLayer(clusters_Grantees);
+        setBounds();
+
+        // Build the filter pills (Type of Grant, Commodities, Organization Type)
+        // and the left-panel Grantees list only after BOTH the grantee geojson
+        // and grantees_attributes.json are available. organization_type is merged
+        // onto each feature from the attributes file by matching org_id == S_N
+        // (compared as strings).
+        attributesPromise.then(function(attr) {
+            var orgTypeBySN = {};
+            (attr.orgs || []).forEach(function(o) {
+                if (o && o.organization_type) {
+                    orgTypeBySN[String(o.org_id)] = o.organization_type;
+                }
+            });
+            // Index the CSV-derived tables by org_id (== S_N) so each marker can
+            // carry its grants (enterprise classification / subcategory), its
+            // restoration records (area direct + contributed, people benefited)
+            // and its women-led enterprise records. These come from the
+            // moreDataFromFFF CSVs via consolidate_grantees_attributes.py.
+            var grantsByOrg = {};
+            (attr.grants || []).forEach(function(g) {
+                var k = String(g.org_id);
+                (grantsByOrg[k] = grantsByOrg[k] || []).push(g);
+            });
+            var restorationByOrg = {};
+            (attr.restoration || []).forEach(function(r) {
+                var k = String(r.org_id);
+                (restorationByOrg[k] = restorationByOrg[k] || []).push(r);
+            });
+            var womenByOrg = {};
+            (attr.women || []).forEach(function(w) {
+                var k = String(w.org_id);
+                (womenByOrg[k] = womenByOrg[k] || []).push(w);
+            });
+            layer_Grantees.eachLayer(function(l) {
+                var p = l.feature.properties;
+                var sn = String(p.S_N);
+                p.organization_type = orgTypeBySN[sn] || null;
+                p.grants = grantsByOrg[sn] || [];
+                p.restoration = restorationByOrg[sn] || [];
+                p.women = womenByOrg[sn] || [];
+                // Unique subcategories + enterprise classifications across this
+                // org's grants (a marker can match several filter values).
+                var subs = {}, cls = {};
+                p.grants.forEach(function(g) {
+                    if (g.subcategory) { subs[g.subcategory] = true; }
+                    if (g.enterprise_classification) { cls[g.enterprise_classification] = true; }
+                });
+                p.subcategories = Object.keys(subs);
+                p.enterprise_classifications = Object.keys(cls);
+                // Aggregate people benefited + restoration area for the overview.
+                var people = 0, areaDirect = 0, areaContrib = 0;
+                p.restoration.forEach(function(r) {
+                    people += (r.people_benefited || 0);
+                    areaDirect += (r.area_direct_ha || 0);
+                    areaContrib += (r.area_contributed_ha || 0);
+                });
+                p.people_benefited = people || null;
+                p.area_direct_ha = areaDirect || null;
+                p.area_contributed_ha = areaContrib || null;
+            });
+            // Build the Type-of-Grant / Commodities / Organization Type filter
+            // pills now that features exist and have organization_type merged.
+            buildGranteeFilters();
+            // Build the left-panel Grantees list (DataTable) now that features exist.
+            buildGranteeTable();
+        });
+
+        // Suppress the default hover coverage polygon so only the right-panel list shows.
+        clusters_Grantees._showCoverage = function() {};
+        clusters_Grantees._hideCoverage = function() {};
+        // Build the right-panel ("#aggregate") list of organizations in a cluster, using the
+        // SAME table format as bio_table_generator so it mirrors individual-node display.
+        function clusterOrgTableHTML(cluster) {
+            var kids = cluster.getAllChildMarkers();
+            var n = kids.length;
+            var rows = kids.map(function(m) {
+                var t = m.feature ? m.feature.properties : {};
+                var sn = (t && t.S_N != null) ? t.S_N : '';
+                var name = (t && t.Name_of_Organization) ? t.Name_of_Organization : '(unknown)';
+                var loc = (t && t.Location) ? t.Location : '';
+                var grant = (t && t.Type_of_Grant) ? t.Type_of_Grant : '';
+                var comm = (t && t.Commodities) ? t.Commodities : '';
+                var cls = (t && t.enterprise_classifications && t.enterprise_classifications.length) ? t.enterprise_classifications.join(', ') : '';
+                var meta = [];
+                if (t && t.people_benefited != null) { meta.push(t.people_benefited + ' people'); }
+                if (t && t.area_direct_ha != null) { meta.push(t.area_direct_ha + ' ha direct'); }
+                if (t && t.area_contributed_ha != null) { meta.push(t.area_contributed_ha + ' ha contributed'); }
+                return '<div class="org-card">' +
+                    '<table class="table">' +
+                    '<tr><td colspan="2"><strong>S.N.</strong> ' + sn + '</td></tr>' +
+                    '<tr><td colspan="2"><strong>Organization</strong><br />' + name + '</td></tr>' +
+                    '<tr><th scope="row">Location</th><td>' + loc + '</td></tr>' +
+                    '<tr><th scope="row">Type of Grant</th><td>' + grant + '</td></tr>' +
+                    '<tr><th scope="row">Commodities / Enterprises</th><td>' + comm + '</td></tr>' +
+                    (cls ? '<tr><th scope="row">Enterprise Classification</th><td>' + cls + '</td></tr>' : '') +
+                    (meta.length ? '<tr><th scope="row">Impact</th><td>' + meta.join(' \u00b7 ') + '</td></tr>' : '') +
+                    '</table>' +
+                    '</div>';
+            }).join('');
+            return '<div class="row"><div class="col-12">' +
+                '<p class="text-muted mb-1">Cluster — ' + n + ' organization' + (n === 1 ? '' : 's') + '</p>' +
+                rows +
+                '</div></div>';
+        }
+        // A real mouse hover over a cluster icon emits 'clustermouseover'/'clustermouseout'.
+        // Show the member organizations in the same table format as individual nodes.
+        clusters_Grantees.on('clustermouseover', function(e) {
+            var b = L.DomUtil.get('aggregate');
+            b.innerHTML = clusterOrgTableHTML(e.layer);
+        });
     });
+
     var baseLayers = {
         "Satellite (Esri)": layer_EsriImagery,
         "OpenStreetMap ": layer_OSMStandard_0,
@@ -615,50 +782,139 @@
         // collapsed: false
     }).addTo(map);
 
-    // Filter organizations by Type_of_Grant - top horizontal bar (not a map control)
-    (function() {
+    // Filter organizations by Type_of_Grant / Commodities / Organization Type -
+    // top horizontal bar (not a map control). Built only after both the async
+    // grantee geojson AND grantees_attributes.json have loaded (see the
+    // attributesPromise chain in the layer_Grantees 'data:loaded' handler).
+    // The three groups AND-combine: a marker is shown only when its value is
+    // checked in EVERY group. A marker whose value for a group is empty/absent
+    // (e.g. a grantee with no organization_type) is not constrained by that group.
+    function buildGranteeFilters() {
         var bar = document.getElementById('granteeFilterBar');
         if (!bar) { return; }
-        var counts = {};
+        var typeCounts = {};
+        var commCounts = {};
+        var orgCounts = {};
         layer_Grantees.eachLayer(function(l) {
-            var t = l.feature.properties.Type_of_Grant;
-            counts[t] = (counts[t] || 0) + 1;
+            var p = l.feature.properties;
+            var t = p.Type_of_Grant;
+            typeCounts[t] = (typeCounts[t] || 0) + 1;
+            (p.subcategories || []).forEach(function(c) {
+                if (c) { commCounts[c] = (commCounts[c] || 0) + 1; }
+            });
+            var o = p.organization_type;
+            if (o) { orgCounts[o] = (orgCounts[o] || 0) + 1; }
         });
-        var types = Object.keys(counts).sort();
-        var html = '<span class="gf-title">Type of Grant</span>';
-        types.forEach(function(t) {
+        var html = '';
+        html += '<span class="gf-title">Type of Grant</span>';
+        Object.keys(typeCounts).sort().forEach(function(t) {
             html += '<label class="gf-value checked">' +
                         '<input type="checkbox" class="gf-type" value="' + t + '" checked>' +
                         '<span class="gf-box">&#10003;</span>' +
-                        '<span>' + t + ' (' + counts[t] + ')</span>' +
+                        '<span>' + t + ' (' + typeCounts[t] + ')</span>' +
                     '</label>' +
                     '<br>';
         });
-        bar.innerHTML = html;
+        html += '<span class="gf-title">Commodities</span>';
+        html += '<div class="gf-dd" id="commoditiesDropdown">' +
+                    '<button type="button" class="gf-dd-toggle" title="Filter by Commodities">' +
+                        'Commodities' +
+                        '<span class="gf-dd-caret">&#9662;</span>' +
+                    '</button>' +
+                    '<div class="gf-dd-panel">' +
+                        '<div class="gf-dd-actions">' +
+                            '<button type="button" class="gf-dd-btn" id="commSelectAll">Select all</button>' +
+                            '<button type="button" class="gf-dd-btn" id="commClear">Clear</button>' +
+                        '</div>';
+        Object.keys(commCounts).sort().forEach(function(c) {
+            html += '<label class="gf-value checked">' +
+                        '<input type="checkbox" class="gf-commodity" value="' + c + '" checked>' +
+                        '<span class="gf-box">&#10003;</span>' +
+                        '<span>' + c + ' (' + commCounts[c] + ')</span>' +
+                    '</label>';
+        });
+        html += '</div></div>';
+        html += '<span class="gf-title">Organization Type</span>';
+        Object.keys(orgCounts).sort().forEach(function(o) {
+            html += '<label class="gf-value checked">' +
+                        '<input type="checkbox" class="gf-orgtype" value="' + o + '" checked>' +
+                        '<span class="gf-box">&#10003;</span>' +
+                        '<span>' + o + ' (' + orgCounts[o] + ')</span>' +
+                    '</label>' +
+                    '<br>';
+        });
+        bar.insertAdjacentHTML('beforeend', html);
+        // Shared apply(): reads all three groups and AND-combines them.
         var apply = function() {
-            var checked = {};
+            var checkedType = {};
             bar.querySelectorAll('.gf-type').forEach(function(cb) {
-                checked[cb.value] = cb.checked;
+                checkedType[cb.value] = cb.checked;
+            });
+            var checkedComm = {};
+            bar.querySelectorAll('.gf-commodity').forEach(function(cb) {
+                checkedComm[cb.value] = cb.checked;
+            });
+            var checkedOrg = {};
+            bar.querySelectorAll('.gf-orgtype').forEach(function(cb) {
+                checkedOrg[cb.value] = cb.checked;
             });
             layer_Grantees.eachLayer(function(l) {
-                var t = l.feature.properties.Type_of_Grant;
-                if (checked[t]) {
+                var p = l.feature.properties;
+                var show = !!checkedType[p.Type_of_Grant] &&
+                           (p.subcategories && p.subcategories.length ? p.subcategories.some(function(c) { return !!checkedComm[c]; }) : true) &&
+                           (p.organization_type ? !!checkedOrg[p.organization_type] : true);
+                if (show) {
                     if (!clusters_Grantees.hasLayer(l)) { clusters_Grantees.addLayer(l); }
                 } else {
                     clusters_Grantees.removeLayer(l);
                 }
             });
         };
-        bar.querySelectorAll('.gf-value').forEach(function(lbl) {
+        bar.querySelectorAll('.gf-type, .gf-commodity, .gf-orgtype').forEach(function(cb) {
+            var lbl = cb.closest('label.gf-value');
             lbl.addEventListener('click', function(e) {
                 e.preventDefault();
-                var cb = lbl.querySelector('.gf-type');
                 cb.checked = !cb.checked;
                 lbl.classList.toggle('checked', cb.checked);
                 apply();
             });
         });
-    })();
+        // Commodities dropdown: clicking the toggle opens/closes the panel;
+        // clicking a checkbox inside never closes it; clicking anywhere else
+        // (map, other panels, the other filter groups) closes it. The 'Select
+        // all' / 'Clear' buttons update every commodity checkbox and re-apply.
+        var ddWrap = document.getElementById('commoditiesDropdown');
+        var ddToggle = ddWrap.querySelector('.gf-dd-toggle');
+        var ddPanel = ddWrap.querySelector('.gf-dd-panel');
+        var ddOpen = false;
+        function setDdOpen(open) {
+            ddOpen = open;
+            ddPanel.classList.toggle('gf-dd-open', open);
+            ddToggle.classList.toggle('gf-dd-active', open);
+        }
+        ddToggle.addEventListener('click', function() {
+            setDdOpen(!ddOpen);
+        });
+        document.addEventListener('click', function(e) {
+            if (ddWrap && ddWrap.contains(e.target)) { return; }
+            setDdOpen(false);
+        });
+        function setAllCommodities(checked) {
+            ddPanel.querySelectorAll('.gf-commodity').forEach(function(cb) {
+                cb.checked = checked;
+                cb.closest('label.gf-value').classList.toggle('checked', checked);
+            });
+            apply();
+        }
+        ddPanel.querySelector('#commSelectAll').addEventListener('click', function(e) {
+            e.preventDefault();
+            setAllCommodities(true);
+        });
+        ddPanel.querySelector('#commClear').addEventListener('click', function(e) {
+            e.preventDefault();
+            setAllCommodities(false);
+        });
+    }
     // Boundary overlays loaded from the committed .geojson files. The geometry is
     // fetched (not embedded) so the large data files are not duplicated into JS.
     // District and Province are toggleable overlays (default off); Country is always visible.
@@ -780,7 +1036,7 @@
                 var chure = window.json_Chure ? window.json_Chure.features.length : 0;
                 bar.insertAdjacentHTML('beforeend',
                     '<span class="gf-group-sep">' +
-                        '<span class="gf-title">Filter by</span>' +
+                        '<span class="gf-title">Boundaries</span>' +
                         '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_District">' +
                         '<span class="gf-box">&#10003;</span><span>District boundaries (' + district + ')</span></label>' +
                         '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_Province">' +
@@ -849,43 +1105,47 @@
         }
     })();
 
-    // $table = $('#sidebar table>tbody');
-    $table = $('#dataTable');
-    $col_to_show = ['S_N', 'Name_of_Organization'];
+    // Build the left-panel Grantees list (DataTable) from the async grantee features.
+    // Called once data:loaded fires (see below); the row-click handler looks up
+    // features lazily so it works after load.
+    function buildGranteeTable() {
+        $table = $('#dataTable');
+        $col_to_show = ['S_N', 'Name_of_Organization'];
 
-    $data_table = [];
-    layer_Grantees.eachLayer(function(layer) {
-        $data = [];
-        for (const key in $col_to_show) {
-            if (layer.feature.properties.hasOwnProperty($col_to_show[key])) {
-                const element = layer.feature.properties[$col_to_show[key]];
-                $data.push(element);
+        $data_table = [];
+        layer_Grantees.eachLayer(function(layer) {
+            $data = [];
+            for (const key in $col_to_show) {
+                if (layer.feature.properties.hasOwnProperty($col_to_show[key])) {
+                    const element = layer.feature.properties[$col_to_show[key]];
+                    $data.push(element);
+                }
             }
-        }
-        $data_table.unshift($data);
-        // debugger;
-        // $data_table.push(layer.feature.properties);
-    });
-    var table = $('#dataTable').DataTable({
-        data: $data_table,
-        columns: [
-            { title: "S.N." },
-            { title: "Organization" }
-        ],
-        dom: 'f<t>p',
-        "scrollY": "400px",
-        "scrollCollapse": true,
-        "paging": true,
-        "pagingType": "numbers"
-    });
-    $('#dataTable tbody').on('click', 'tr', function() {
-        var data = table.row(this).data();
-        var clickedName = data[1];
-        var feat = null;
-        layer_Grantees.eachLayer(function(l){ if (l.feature && l.feature.properties.Name_of_Organization === clickedName) feat = l.feature; });
-        b = L.DomUtil.get('aggregate');
-        if (feat) { b.innerHTML = bio_table_generator(feat); }
-    });
+            $data_table.unshift($data);
+            // debugger;
+            // $data_table.push(layer.feature.properties);
+        });
+        var table = $('#dataTable').DataTable({
+            data: $data_table,
+            columns: [
+                { title: "S.N." },
+                { title: "Organization" }
+            ],
+            dom: 'f<t>p',
+            "scrollY": "400px",
+            "scrollCollapse": true,
+            "paging": true,
+            "pagingType": "numbers"
+        });
+        $('#dataTable tbody').on('click', 'tr', function() {
+            var data = table.row(this).data();
+            var clickedName = data[1];
+            var feat = null;
+            layer_Grantees.eachLayer(function(l){ if (l.feature && l.feature.properties.Name_of_Organization === clickedName) feat = l.feature; });
+            b = L.DomUtil.get('aggregate');
+            if (feat) { b.innerHTML = bio_table_generator(feat); }
+        });
+    }
     // var maintable = $('#mainTable').DataTable({
     //     data: $data_table,
     //     columns: [

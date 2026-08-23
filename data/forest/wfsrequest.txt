@@ -1,0 +1,1 @@
+https://cfdataportal.com/geoserver/cfportal/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=cfportal%3Aforest&maxFeatures=50&outputFormat=SHAPE-ZIP

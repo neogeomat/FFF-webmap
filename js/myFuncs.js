@@ -84,15 +84,14 @@ var bio_table_generator = function(feature) {
     return bio;
 };
 
-// Blue round pin showing the S.N. number; compact so names do not overlap.
+// Single-point marker: the FFF icon (no number — S_N shows on hover).
 function style_Grantees_div_icon(feature) {
-    var sn = feature.properties.S_N != null ? feature.properties.S_N : '';
     return {
         icon: L.divIcon({
             className: 'org-pin-wrap',
-            html: '<div class="org-pin">' + sn + '</div>',
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
+            html: '<img src="images/FFF_icon.png" class="org-pin-img" alt="">',
+            iconSize: [32, 28],
+            iconAnchor: [16, 14]
         })
     };
 }

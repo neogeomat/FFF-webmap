@@ -97,19 +97,21 @@
         }
         
         .map-panel.collapsed {
-            transform: translateX(-100%);
+            transform: translateX(calc(-100% - 10px));
         }
         
         .map-panel.left-panel.collapsed {
             transform: translateX(calc(-100% - 10px));
         }
 
+        /* Right panel is now at the BOTTOM → slide down off-canvas when collapsed */
         .map-panel.right-panel.collapsed {
-            transform: translateX(calc(100% + 10px));
+            transform: translateY(calc(100% + 10px));
         }
 
+        /* Bottom panel is now on the RIGHT → slide right off-canvas when collapsed */
         .map-panel.bottom-panel.collapsed {
-            transform: translateY(100%);
+            transform: translateX(calc(100% + 10px));
         }
         
         .panel-toggle-btn {
@@ -143,6 +145,7 @@
         /* Toggle buttons ride on their panel (children of .map-panel) and
            protrude just past the panel's screen-facing edge, so the panel can
            slide fully off-screen while only the button tab stays visible. */
+        /* Left panel toggle: protrudes to the RIGHT of the left panel */
         .left-panel .panel-toggle-btn {
             position: absolute;
             right: -85px;
@@ -152,16 +155,8 @@
             transform: translateY(-50%);
             border-radius: 0 4px 4px 0;
         }
+        /* Right panel is now at the BOTTOM → toggle protrudes ABOVE the panel */
         .right-panel .panel-toggle-btn {
-            position: absolute;
-            left: -85px;
-            top: 50%;
-            right: auto;
-            bottom: auto;
-            transform: translateY(-50%);
-            border-radius: 4px 0 0 4px;
-        }
-        .bottom-panel .panel-toggle-btn {
             position: absolute;
             top: -30px;
             left: 50%;
@@ -173,6 +168,16 @@
             height: 28px;
             padding: 0 10px;
             border-radius: 4px 4px 0 0;
+        }
+        /* Bottom panel is now on the RIGHT → toggle protrudes to the LEFT of the panel */
+        .bottom-panel .panel-toggle-btn {
+            position: absolute;
+            left: -85px;
+            top: 50%;
+            right: auto;
+            bottom: auto;
+            transform: translateY(-50%);
+            border-radius: 4px 0 0 4px;
         }
         .gf-label {
             font-size: 13px;
@@ -203,21 +208,21 @@
             bottom: 100px;
         }
         
-        /* Right panel (Details) */
+        /* Details panel — now at the BOTTOM (#rightPanel holds #aggregate) */
         #rightPanel {
-            top: 80px;
-            right: 10px;
-            width: 320px;
-            bottom: 100px;
-        }
-        
-        /* Bottom panel (Aggregate, Timeline, Table) */
-        #bottomPanel {
             left: 10px;
             right: 10px;
             bottom: 0;
             height: 350px;
             border-radius: 8px 8px 0 0;
+        }
+        
+        /* Aggregate panel — now on the RIGHT side (#bottomPanel holds charts) */
+        #bottomPanel {
+            top: 80px;
+            right: 10px;
+            width: 340px;
+            bottom: 100px;
         }
         
         .info {
@@ -229,28 +234,41 @@
             border-radius: 5px;
             pointer-events: none;
         }
+        /* Hover popup that mirrors #aggregate content on point/cluster hover */
+        .info-hover-popup {
+            position: fixed;
+            z-index: 1200;
+            max-width: 300px;
+            max-height: 60vh;
+            overflow: auto;
+            background: rgba(255, 255, 255, 0.97);
+            border: 1px solid #0070b6;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+            border-radius: 6px;
+            pointer-events: none;
+            font: 13px/15px Arial, Helvetica, sans-serif;
+            color: #1a3c5e;
+        }
+        .info-hover-popup table { font: 12px/14px Arial, Helvetica, sans-serif; margin: 0; }
+        .info-hover-popup th { white-space: nowrap; }
+        .info-hover-popup .org-card { background: transparent; box-shadow: none; }
+        .info-hover-popup .panel-header,
+        .info-hover-popup .gf-label { display: none; }
         .org-pin-wrap {
             background: transparent;
             border: none;
         }
-        /* Blue round pin with the S.N. number - highly visible on satellite/Esri */
-        .org-pin {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            background: #0070b6;
-            border: 3px solid #ffffff;
-            box-shadow: 0 0 0 2px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.6);
-            color: #ffffff;
-            font: bold 12px/24px Arial, Helvetica, sans-serif;
-            text-align: center;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .org-pin:hover {
-            background: #005a93;
+        /* FFF icon used for individual (unclustered) grantee points */
+        .org-pin-img {
+            width: 32px;
+            height: 28px;
+            object-fit: contain;
+            display: block;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
             cursor: pointer;
+        }
+        .org-pin-img:hover {
+            filter: drop-shadow(0 0 0 2px #0070b6) drop-shadow(0 1px 2px rgba(0,0,0,0.6));
         }
         /* Permanent name tooltip on the map */
         .org-tip-name {
@@ -460,10 +478,10 @@
 <body>
 
     <!-- Page title overlay -->
-    <div class="page-title-overlay">
+    <!-- <div class="page-title-overlay">
         <span style="font-size: 28px; text-shadow: -2px -2px 2px black;">FAO </span>
         <span style="color: #0070b6; font-size: 28px; text-shadow: -2px -2px 2px #0070b6;">Grantees</span>
-    </div>
+    </div> -->
 
     <!-- Full-screen map -->
     <div id="map">
@@ -483,10 +501,10 @@
         </div>
     </div>
 
-    <!-- Right Panel (Details) -->
+    <!-- Right Panel (Details) — now at the BOTTOM; holds #aggregate (info panel) -->
     <div id="rightPanel" class="map-panel right-panel collapsed">
         <button class="panel-toggle-btn" id="rightPanelToggle" onclick="togglePanel('rightPanel')" title="Toggle Details">
-            <span id="rightPanelArrow">‹</span> <span class="gf-label">Details</span>
+            <span id="rightPanelArrow">⌄</span> <span class="gf-label">Details</span>
         </button>
         <div class="panel-content">
             <div class="panel-header">Details</div>
@@ -496,10 +514,10 @@
         </div>
     </div>
 
-    <!-- Bottom Panel (Aggregate, Timeline, Table) -->
+    <!-- Bottom Panel (Aggregate, Timeline, Table) — now on the RIGHT side -->
     <div id="bottomPanel" class="map-panel bottom-panel collapsed">
-        <button class="panel-toggle-btn" id="bottomPanelToggle" onclick="togglePanel('bottomPanel')" title="Toggle Bottom Panel">
-            <span id="bottomPanelArrow">⌃</span> <span class="gf-label">Aggregate</span>
+        <button class="panel-toggle-btn" id="bottomPanelToggle" onclick="togglePanel('bottomPanel')" title="Toggle Aggregate">
+            <span id="bottomPanelArrow">›</span> <span class="gf-label">Aggregate</span>
         </button>
         <div class="panel-content">
             <div class="panel-header">Aggregate</div>
@@ -531,9 +549,11 @@
         if (panelId === 'leftPanel') {
             arrow.textContent = panel.classList.contains('collapsed') ? '›' : '‹';
         } else if (panelId === 'rightPanel') {
-            arrow.textContent = panel.classList.contains('collapsed') ? '‹' : '›';
-        } else if (panelId === 'bottomPanel') {
+            // Right panel is now at the BOTTOM → arrow points up/down
             arrow.textContent = panel.classList.contains('collapsed') ? '⌃' : '⌄';
+        } else if (panelId === 'bottomPanel') {
+            // Bottom panel is now on the RIGHT → arrow points left/right
+            arrow.textContent = panel.classList.contains('collapsed') ? '›' : '‹';
         }
         
         // Invalidate map size after panel transition
@@ -546,6 +566,43 @@
     // Wait for DOMContentLoaded to ensure all deferred scripts and DOM are ready
     document.addEventListener('DOMContentLoaded', function() {
     var highlightLayer;
+
+    // ---- Hover popup: mirrors the #aggregate (info) content as a floating
+    //      box when hovering a grantee point or cluster, then removes it on
+    //      mouseout. Created once, reused. Pure DOM, no Leaflet popup needed.
+    var hoverPopup = document.createElement('div');
+    hoverPopup.className = 'info-hover-popup';
+    hoverPopup.style.display = 'none';
+    document.body.appendChild(hoverPopup);
+
+    function showHoverPopup(html, latlng) {
+        hoverPopup.innerHTML = html;
+        hoverPopup.style.display = 'block';
+        // Position the floating box next to the hovered point/cluster (viewport
+        // coords) and flip to the other side near the right/bottom edges.
+        var mapEl = map.getContainer();
+        var rect = mapEl.getBoundingClientRect();
+        var pw = hoverPopup.offsetWidth, ph = hoverPopup.offsetHeight;
+        var left, top;
+        if (latlng && map.latLngToContainerPoint) {
+            var pt = map.latLngToContainerPoint(latlng);
+            left = rect.left + pt.x + 18;
+            top = rect.top + pt.y - 12;
+            if (left + pw > window.innerWidth - 8) { left = rect.left + pt.x - pw - 18; }
+            if (top + ph > window.innerHeight - 8) { top = window.innerHeight - ph - 8; }
+            if (left < 8) { left = 8; }
+            if (top < 8) { top = 8; }
+        } else {
+            left = rect.left + mapEl.clientWidth - pw - 20;
+            top = rect.top + 90;
+        }
+        hoverPopup.style.left = left + 'px';
+        hoverPopup.style.top = top + 'px';
+    }
+    function hideHoverPopup() {
+        hoverPopup.style.display = 'none';
+        hoverPopup.innerHTML = '';
+    }
 
     function highlightFeature(e) {
         highlightLayer = e.target;
@@ -602,12 +659,15 @@
         layer.on({
             mouseout: function(e) {
                 // info.update();
-
+                hideHoverPopup();
                 for (i in e.target._eventParents) {
                     e.target._eventParents[i].resetStyle(e.target);
                 }
             },
-            mouseover: highlightFeature,
+            mouseover: function(e) {
+                highlightFeature(e);
+                showHoverPopup(bio_table_generator(e.target.feature), e.target.getLatLng());
+            },
         });
     }
 
@@ -623,7 +683,7 @@
         onEachFeature: pop_Grantees,
         pointToLayer: function(feature, latlng) {
             var marker = L.marker(latlng, style_Grantees_div_icon(feature));
-            marker.bindTooltip('S.N. ' + (feature.properties.S_N != null ? feature.properties.S_N : ''), {
+            marker.bindTooltip((feature.properties.Name_of_Organization || ('S.N. ' + (feature.properties.S_N != null ? feature.properties.S_N : ''))), {
                 direction: 'top',
                 className: 'org-tip-name',
                 offset: [0, -12]
@@ -764,8 +824,13 @@
         // A real mouse hover over a cluster icon emits 'clustermouseover'/'clustermouseout'.
         // Show the member organizations in the same table format as individual nodes.
         clusters_Grantees.on('clustermouseover', function(e) {
+            var html = clusterOrgTableHTML(e.layer);
             var b = L.DomUtil.get('aggregate');
-            b.innerHTML = clusterOrgTableHTML(e.layer);
+            b.innerHTML = html;
+            showHoverPopup(html, e.layer.getBounds().getCenter());
+        });
+        clusters_Grantees.on('clustermouseout', function(e) {
+            hideHoverPopup();
         });
     });
 

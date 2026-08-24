@@ -278,7 +278,10 @@
             color: #1a3c5e;
             font: 11px/14px Arial, Helvetica, sans-serif;
             padding: 0 4px;
-            white-space: nowrap;
+            white-space: normal;        /* allow wrapping */
+            width: 160px;               /* fixed box -> ~3-4 words per line */
+            max-width: 160px;
+            text-align: center;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
         }
         .leaflet-tooltip.org-tip-name::before { display: none; }
@@ -686,7 +689,9 @@
             marker.bindTooltip((feature.properties.Name_of_Organization || ('S.N. ' + (feature.properties.S_N != null ? feature.properties.S_N : ''))), {
                 direction: 'top',
                 className: 'org-tip-name',
-                offset: [0, -12]
+                offset: [0, -12],
+                permanent: true,        // name always visible, no hover needed
+                interactive: false       // let pointer pass through to the marker
             });
             return marker;
         },

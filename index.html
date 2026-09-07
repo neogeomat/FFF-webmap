@@ -336,12 +336,12 @@
             background: #ffffff;
             border: 1px solid #ced4da;
             border-radius: 6px;
-            padding: 8px 12px;
+            padding: 10px 14px;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-            display: inline-flex;
-            align-items: center;
-            gap: 14px;
-            flex-wrap: wrap;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
             max-width: min(90vw, 900px);
         }
         .grantee-filter.collapsed {
@@ -350,12 +350,23 @@
         .grantee-filter .gf-title {
             font: bold 14px/18px Arial, Helvetica, sans-serif;
             color: #1a3c5e;
+            white-space: nowrap;
         }
-        /* Visual separator between filter groups (Type of Grant vs Boundary layers) */
+        .gf-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+        /* Visual separator between filter groups — now horizontal between stacked rows */
         .gf-group-sep {
-            border-left: 2px solid #ced4da;
-            margin-left: 12px;
-            padding-left: 14px;
+            border-top: 2px solid #ced4da;
+            margin-top: 2px;
+            padding-top: 10px;
+            border-left: none;
+            margin-left: 0;
+            padding-left: 0;
         }
         /* ---- Commodities dropdown filter ---- */
         .gf-dd {
@@ -1082,14 +1093,16 @@
             if (typeof clusters_Grantees !== 'undefined' && typeof layer_Grantees !== 'undefined' && layer_Grantees.eachLayer) {
                 // need current commodity/type filters — read pills if present
                 var bar = document.getElementById('granteeFilterBar');
-                var checkedType={}, checkedComm={}, checkedOrg={};
+                var checkedType={}, checkedComm={}, checkedEnterprise={}, checkedOrg={};
                 if (bar) {
                     bar.querySelectorAll('.gf-type').forEach(function(cb){ checkedType[cb.value]=cb.checked; });
                     bar.querySelectorAll('.gf-commodity').forEach(function(cb){ checkedComm[cb.value]=cb.checked; });
+                    bar.querySelectorAll('.gf-enterprise').forEach(function(cb){ checkedEnterprise[cb.value]=cb.checked; });
                     bar.querySelectorAll('.gf-orgtype').forEach(function(cb){ checkedOrg[cb.value]=cb.checked; });
                 }
                     var hasTypeFilter = Object.keys(checkedType).length>0;
                 var hasCommFilter = Object.keys(checkedComm).length>0;
+                var hasEnterpriseFilter = Object.keys(checkedEnterprise).length>0;
                 var hasOrgFilter = Object.keys(checkedOrg).length>0;
                 layer_Grantees.eachLayer(function(l){
                     var p = l.feature.properties;
@@ -1100,8 +1113,9 @@
                     }
                     var typeOk = !hasTypeFilter || !!checkedType[p.Type_of_Grant];
                     var commOk = !hasCommFilter || (p.subcategories && p.subcategories.length ? p.subcategories.some(function(c){return !!checkedComm[c];}) : true);
+                    var enterpriseOk = !hasEnterpriseFilter || (p.enterprise_classifications && p.enterprise_classifications.length ? p.enterprise_classifications.some(function(c){return !!checkedEnterprise[c];}) : true);
                     var orgOk = !hasOrgFilter || (p.organization_type ? !!checkedOrg[p.organization_type] : true);
-                    var show = timeOk && typeOk && commOk && orgOk;
+                    var show = timeOk && typeOk && commOk && enterpriseOk && orgOk;
                     if (show) { if (!clusters_Grantees.hasLayer(l)) clusters_Grantees.addLayer(l); }
                     else { if (clusters_Grantees.hasLayer(l)) clusters_Grantees.removeLayer(l); }
                 });
@@ -1562,6 +1576,7 @@
         var typeCounts = {};
         var commCounts = {};
         var orgCounts = {};
+        var enterpriseCounts = {};
         layer_Grantees.eachLayer(function(l) {
             var p = l.feature.properties;
             var t = p.Type_of_Grant;
@@ -1571,18 +1586,21 @@
             });
             var o = p.organization_type;
             if (o) { orgCounts[o] = (orgCounts[o] || 0) + 1; }
+            (p.enterprise_classifications || []).forEach(function(c) {
+                if (c) { enterpriseCounts[c] = (enterpriseCounts[c] || 0) + 1; }
+            });
         });
         var html = '';
-        html += '<span class="gf-title">Type of Grant</span>';
+        html += '<div class="gf-group"><span class="gf-title">Type of Grant</span>';
         Object.keys(typeCounts).sort().forEach(function(t) {
             html += '<label class="gf-value checked">' +
                         '<input type="checkbox" class="gf-type" value="' + t + '" checked>' +
                         '<span class="gf-box">&#10003;</span>' +
                         '<span>' + t + ' (' + typeCounts[t] + ')</span>' +
-                    '</label>' +
-                    '<br>';
+                    '</label>';
         });
-        html += '<span class="gf-title">Commodities</span>';
+        html += '</div>';
+        html += '<div class="gf-group"><span class="gf-title">Commodities</span>';
         html += '<div class="gf-dd" id="commoditiesDropdown">' +
                     '<button type="button" class="gf-dd-toggle" title="Filter by Commodities">' +
                         'Commodities' +
@@ -1600,18 +1618,27 @@
                         '<span>' + c + ' (' + commCounts[c] + ')</span>' +
                     '</label>';
         });
-        html += '</div></div>';
-        html += '<span class="gf-title">Organization Type</span>';
+        html += '</div></div></div>';
+        html += '<div class="gf-group"><span class="gf-title">Enterprise Class</span>';
+        Object.keys(enterpriseCounts).sort().forEach(function(c) {
+            html += '<label class="gf-value checked">' +
+                        '<input type="checkbox" class="gf-enterprise" value="' + c + '" checked>' +
+                        '<span class="gf-box">&#10003;</span>' +
+                        '<span>' + c + ' (' + enterpriseCounts[c] + ')</span>' +
+                    '</label>';
+        });
+        html += '</div>';
+        html += '<div class="gf-group"><span class="gf-title">Organization Type</span>';
         Object.keys(orgCounts).sort().forEach(function(o) {
             html += '<label class="gf-value checked">' +
                         '<input type="checkbox" class="gf-orgtype" value="' + o + '" checked>' +
                         '<span class="gf-box">&#10003;</span>' +
                         '<span>' + o + ' (' + orgCounts[o] + ')</span>' +
-                    '</label>' +
-                    '<br>';
+                    '</label>';
         });
+        html += '</div>';
         bar.insertAdjacentHTML('beforeend', html);
-        // Shared apply(): reads all three groups and AND-combines them.
+        // Shared apply(): reads all four groups and AND-combines them.
         var apply = function() {
             var checkedType = {};
             bar.querySelectorAll('.gf-type').forEach(function(cb) {
@@ -1621,6 +1648,10 @@
             bar.querySelectorAll('.gf-commodity').forEach(function(cb) {
                 checkedComm[cb.value] = cb.checked;
             });
+            var checkedEnterprise = {};
+            bar.querySelectorAll('.gf-enterprise').forEach(function(cb) {
+                checkedEnterprise[cb.value] = cb.checked;
+            });
             var checkedOrg = {};
             bar.querySelectorAll('.gf-orgtype').forEach(function(cb) {
                 checkedOrg[cb.value] = cb.checked;
@@ -1629,6 +1660,7 @@
                 var p = l.feature.properties;
                 var show = !!checkedType[p.Type_of_Grant] &&
                            (p.subcategories && p.subcategories.length ? p.subcategories.some(function(c) { return !!checkedComm[c]; }) : true) &&
+                           (p.enterprise_classifications && p.enterprise_classifications.length ? p.enterprise_classifications.some(function(c) { return !!checkedEnterprise[c]; }) : true) &&
                            (p.organization_type ? !!checkedOrg[p.organization_type] : true);
                 if (show) {
                     if (!clusters_Grantees.hasLayer(l)) { clusters_Grantees.addLayer(l); }
@@ -1637,7 +1669,7 @@
                 }
             });
         };
-        bar.querySelectorAll('.gf-type, .gf-commodity, .gf-orgtype').forEach(function(cb) {
+        bar.querySelectorAll('.gf-type, .gf-commodity, .gf-enterprise, .gf-orgtype').forEach(function(cb) {
             var lbl = cb.closest('label.gf-value');
             lbl.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -1805,7 +1837,7 @@
                 var province = window.json_Province ? window.json_Province.features.length : 0;
                 var chure = window.json_Chure ? window.json_Chure.features.length : 0;
                 bar.insertAdjacentHTML('beforeend',
-                    '<span class="gf-group-sep">' +
+                    '<div class="gf-group gf-group-sep">' +
                         '<span class="gf-title">Boundaries</span>' +
                         '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_District">' +
                         '<span class="gf-box">&#10003;</span><span>District boundaries (' + district + ')</span></label>' +
@@ -1813,7 +1845,7 @@
                         '<span class="gf-box">&#10003;</span><span>Province boundaries (' + province + ')</span></label>' +
                         '<label class="gf-value checked"><input type="checkbox" class="gf-boundary" data-layer="layer_Chure" checked>' +
                         '<span class="gf-box">&#10003;</span><span>Chure boundaries (' + chure + ')</span></label>' +
-                    '</span>'
+                    '</div>'
                 );
                 bar.querySelectorAll('.gf-boundary').forEach(function(cb) {
                     var lbl = cb.closest('label.gf-value');

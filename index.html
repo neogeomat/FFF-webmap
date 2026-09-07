@@ -513,17 +513,17 @@
             left: 50%;
             transform: translateX(-50%);
             z-index: 1002;
-            background: #ffffff;
-            border: 1px solid #ced4da;
-            border-radius: 999px;
+            background: transparent;
+            border: none;
+            border-radius: 0;
             padding: 4px;
             display: flex;
-            gap: 4px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.22);
+            gap: 8px;
+            box-shadow: none;
         }
         .mm-tab {
-            border: 1px solid transparent;
-            background: transparent;
+            border: 1px solid #ced4da;
+            background: #ffffff;
             color: #1a3c5e;
             font: 13px/18px Arial, Helvetica, sans-serif;
             font-weight: 600;
@@ -532,6 +532,7 @@
             cursor: pointer;
             white-space: nowrap;
             transition: background 0.18s, color 0.18s, border-color 0.18s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.22);
         }
         .mm-tab:hover { background: #e3eef6; }
         .mm-tab.active {

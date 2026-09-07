@@ -1005,12 +1005,15 @@
             pane: 'pane_District',
             color: '#3388ff',
             weight: 1.5,
-            // Style each district by its project_area flag: 'y' (forest-fruit
-            // project area) = green, 'n' (or unset) = the default blue outline.
-            styleFn: function(feature, base) {
+            // project_area: 'y' (inside the Forest Fruit & Flora project area,
+            // 13 feats) is HIGHLIGHTED green; 'n' (64 feats) is dimmed so the
+            // project-area districts stand out on the satellite basemap.
+            styleFn: function(feature) {
                 var pa = (feature && feature.properties) ? feature.properties.project_area : null;
-                var s = (pa === 'y') ? '#27ae60' : base.color;
-                return { fillOpacity: 0.12, color: s, weight: base.weight };
+                if (pa === 'y') {
+                    return { fillColor: '#27ae60', fillOpacity: 0.5, color: '#1e8449', weight: 2, opacity: 1 };
+                }
+                return { fillColor: '#3388ff', fillOpacity: 0.04, color: '#3388ff', weight: 0.8, opacity: 0.35 };
             }
         }, {
             varName: 'json_Province',
@@ -1077,7 +1080,7 @@
                                         var pa = f.properties && f.properties.project_area;
                                         if (pa === 'y') { y++; } else { nn++; }
                                     });
-                                    msg = n + ' districts. ' + y + ' lie inside a Forest Fruit & Flora project area (green) and ' + nn + ' do not (blue).';
+                                    msg = n + ' districts. ' + y + ' lie inside a Forest Fruit & Flora project area (highlighted green); ' + nn + ' are dimmed.';
                                 } else if (spec.layerVar === 'layer_Province') {
                                     msg = n + ' provinces, drawn out. The per-province grantee breakdown hasn’t been loaded, but the outlines are here.';
                                 } else if (spec.layerVar === 'layer_Chure') {

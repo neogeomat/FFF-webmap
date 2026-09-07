@@ -5,7 +5,7 @@ description: Edit the FAO FFF grantees Leaflet web map.
 
 # FAO FFF Grantees Web Map
 
-Trigger skill for editing the FAO FFF Nepal grantees Leaflet map at `/home/ubentu/baato/FAO/FFF`.
+Trigger skill for editing the FAO FFF Nepal grantees Leaflet map at `/home/ubentu/ssd/baato/FAO/FFF`.
 
 **Base conventions, layout, data pipeline, and pitfalls live in `AGENTS.md` (repo root) —
 read that first.** This skill additionally documents the boundary-overlay behavior and the
@@ -46,7 +46,8 @@ The map now needs HTTP for EVERYTHING: boundaries use `fetch`, grantees use the 
 
 ## Boundary overlays (added after AGENTS.md — keep AGENTS.md in sync)
 Four committed GeoJSON boundary layers wired in `Webmap/index.html` (IIFE near the end):
-District (77 feats, styled per-feature by `project_area`: `y` → green #27ae60, else blue #3388ff),
+District (77 feats — styled per-feature by `project_area`: `'y'` (13, project area) → highlighted green
+#27ae60 fill @ 0.5 + dark-green stroke; `'n'` (64) → dimmed blue #3388ff fill @ 0.04, stroke-opacity 0.35),
 Province (7, orange #e67e22), Chure (1, green #27ae60, the Terai/Chure belt),
 Nepal (1, white #ffffff, always added to the map on load).
 - Loaded via `fetch`, NOT embedded globals — **they only appear when served over HTTP;
@@ -57,6 +58,33 @@ Nepal (1, white #ffffff, always added to the map on load).
   the Organizations (grantee marker) cluster layer are ON by default.
 - Panes: District z410, Province z420, Chure z425, Nepal z430 — all below `pane_Grantees`
   (z650) so points stay on top.
+
+## Collapsible panels — moving a panel to a new screen edge
+Three panels: `#leftPanel` (Grantees list), `#rightPanel` (Details / `#aggregate`),
+`#bottomPanel` (Aggregate charts). All default-COLLAPSED; each rides a persistent
+edge-toggle button (child of `.map-panel`). **The `left-panel` / `right-panel` /
+`bottom-panel` CSS classes do NOT match the panel's screen position** — they are
+static identifiers on the div. The actual geometry is driven by the `#rightPanel` /
+`#bottomPanel` / `#leftPanel` id rules. So when the user wants a panel moved to a
+different edge (e.g. "Aggregate on the right, Details at the bottom"), you must remap
+THREE independent mechanisms together — missing any one leaves the panel in the wrong
+place or its toggle button dangling:
+
+1. **`#id` geometry** in `<style>` (`#rightPanel`, `#bottomPanel`, `#leftPanel`): set
+   `top/left/right/bottom/width/height` for the new position.
+2. **`.map-panel.<class>.collapsed` transform**: the off-canvas slide. `.left-panel`
+   slides `translateX(-100% -10px)`, `.right-panel` must slide the way the panel now
+   leaves the screen (e.g. bottom panel → `translateY(100%+10px)`), `.bottom-panel`
+   similarly (e.g. right panel → `translateX(100%+10px)`). The base `.map-panel.collapsed`
+   rule is just a fallback.
+3. **`.<class> .panel-toggle-btn` placement** + **`togglePanel()` arrow glyphs** in
+   `index.html`: the button must protrude from the panel's NEW screen-facing edge
+   (left-panel→right, bottom→above, right→left), and the arrow char (`›‹` vs `⌃⌄`)
+   must match the new slide direction.
+
+After moving, verify computed `getBoundingClientRect()` of each panel over HTTP
+(see `references/panel-layout.md` for the exact probe + the hover-popup pattern).
+Panel HTML ids/classes stay the same; only css/transform/toggle logic changes.
 
 ## Verification loop (do this for any UI change)
 1. Make the edit (`Webmap/index.html` and/or `Webmap/js/myFuncs.js`).
@@ -92,3 +120,12 @@ feature at render time (in `index.html`, inside `layer_Grantees.on('data:loaded'
   Classification, a Grants list (period/title/classification·commodity), Restoration
   (direct + contributed ha, people benefited, by year block) and Women-led records. The cluster
   hover table shows a compact Classification + Impact line too.
+- **Hover popup mirrors the info panel.** `index.html` keeps one shared `.info-hover-popup`
+  `<div>` (appended to `body`), shown on point `mouseover` (`showHoverPopup(bio_table_generator(feature))`)
+  and on cluster `clustermouseover` (`showHoverPopup(clusterOrgTableHTML(e.layer))`), hidden on
+  `mouseout`/`clustermouseout`. It reuses the EXACT same HTML the `#aggregate` panel shows, so the
+  popup and the pinned Details panel never diverge. Position it clear of the bottom/right panels
+  (top-right of the viewport). Verify it fills on hover and clears on mouseout over HTTP
+  (see `references/panel-layout.md`).
+- See `references/panel-layout.md` for the verified panel-remap + hover-popup recipe and the
+  `getBoundingClientRect` probe used to confirm geometry after a move.

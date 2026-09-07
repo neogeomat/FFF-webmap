@@ -299,11 +299,39 @@
             justify-content: center;
             box-shadow: 0 0 0 2px rgba(0,0,0,0.45), 0 2px 4px rgba(0,0,0,0.5);
         }
-        /* ---- Filter UI (inside map, top-left, right of zoom buttons) ---- */
+        /* ---- Filter bar below tabs (collapsible, centered) ---- */
+        .filter-bar-wrap {
+            position: fixed;
+            top: 54px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1001;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            pointer-events: none;
+        }
+        .filter-toggle {
+            pointer-events: auto;
+            background: #ffffff;
+            border: 1px solid #0070b6;
+            color: #0070b6;
+            border-radius: 999px;
+            padding: 5px 14px;
+            font: 12px/16px Arial, Helvetica, sans-serif;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.22);
+            transition: background 0.18s, color 0.18s;
+        }
+        .filter-toggle:hover { background: #e3eef6; }
+        .filter-toggle.active { background: #0070b6; color: #ffffff; }
         .grantee-filter {
-            position: absolute;
-            top: 10px;
-            left: 50px;
+            pointer-events: auto;
+            position: relative;
+            top: auto;
+            left: auto;
             z-index: 1000;
             background: #ffffff;
             border: 1px solid #ced4da;
@@ -314,7 +342,10 @@
             align-items: center;
             gap: 14px;
             flex-wrap: wrap;
-            max-width: 60%;
+            max-width: min(90vw, 900px);
+        }
+        .grantee-filter.collapsed {
+            display: none !important;
         }
         .grantee-filter .gf-title {
             font: bold 14px/18px Arial, Helvetica, sans-serif;
@@ -474,21 +505,249 @@
             z-index: 5;
         }
         .panel-close:hover { color: #005a93; }
+
+        /* ---- Top mode switch: Overview vs Evolution ---- */
+        .map-mode-tabs {
+            position: fixed;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1002;
+            background: #ffffff;
+            border: 1px solid #ced4da;
+            border-radius: 999px;
+            padding: 4px;
+            display: flex;
+            gap: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.22);
+        }
+        .mm-tab {
+            border: 1px solid transparent;
+            background: transparent;
+            color: #1a3c5e;
+            font: 13px/18px Arial, Helvetica, sans-serif;
+            font-weight: 600;
+            padding: 7px 16px;
+            border-radius: 999px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.18s, color 0.18s, border-color 0.18s;
+        }
+        .mm-tab:hover { background: #e3eef6; }
+        .mm-tab.active {
+            background: #0070b6;
+            color: #ffffff;
+            border-color: #0070b6;
+            box-shadow: 0 1px 4px rgba(0,112,182,0.4);
+        }
+        /* hide evolution-specific UI by default */
+        body:not(.map-mode-evolution) #evolutionOverlay { display: none !important; }
+        body:not(.map-mode-evolution) #tab-evolution { display: none !important; }
+        body.map-mode-evolution #tab-aggregate { display: none !important; }
+
+        /* ---- Evolution timeline overlay (bottom centre of map) ---- */
+        #evolutionOverlay {
+            position: fixed;
+            left: 50%;
+            bottom: 18px;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(255,255,255,0.97);
+            border: 1px solid #0070b6;
+            border-radius: 10px;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.32);
+            padding: 12px 16px 10px;
+            width: min(720px, calc(100vw - 24px));
+            max-width: 720px;
+        }
+        #evolutionOverlay .ts-title {
+            font: bold 13px/16px Arial, Helvetica, sans-serif;
+            color: #0070b6;
+            text-align: center;
+            margin: 0 0 8px;
+        }
+        #evolutionOverlay .ts-subtitle {
+            font: 11px/14px Arial, Helvetica, sans-serif;
+            color: #5a6d80;
+            text-align: center;
+            margin: 0 0 10px;
+        }
+        .ts-range-wrap {
+            position: relative;
+            padding: 14px 10px 8px;
+        }
+        .ts-track {
+            position: relative;
+            height: 6px;
+            background: #e9ecef;
+            border-radius: 999px;
+        }
+        .ts-fill {
+            position: absolute;
+            top: 0; bottom: 0;
+            background: #0070b6;
+            border-radius: 999px;
+            pointer-events: none;
+        }
+        .ts-thumb {
+            position: absolute;
+            top: 50%;
+            width: 18px; height: 18px;
+            border-radius: 50%;
+            border: 2px solid #ffffff;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.45);
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            touch-action: none;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .ts-thumb.from { background: #0070b6; z-index: 3; }
+        .ts-thumb.to   { background: #e67e22; z-index: 3; }
+        .ts-thumb .ts-tip {
+            position: absolute;
+            bottom: calc(100% + 7px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a3c5e;
+            color: #ffffff;
+            font: 11px/14px Arial, Helvetica, sans-serif;
+            padding: 2px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+        .ts-thumb .ts-tip::after {
+            content: "";
+            position: absolute;
+            top: 100%; left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: #1a3c5e;
+        }
+        .ts-ticks {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 2px 0;
+            font: 11px/14px Arial, Helvetica, sans-serif;
+            color: #5a6d80;
+        }
+        .ts-ticks span.active { color: #0070b6; font-weight: bold; }
+        .ts-range-labels {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 6px;
+            font: 12px/14px Arial, Helvetica, sans-serif;
+            color: #1a3c5e;
+        }
+        .ts-range-labels strong { color: #0070b6; }
+        .ts-range-labels strong.to { color: #e67e22; }
+        .ts-controls {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        .ts-btn {
+            border: 1px solid #0070b6;
+            background: #ffffff;
+            color: #0070b6;
+            border-radius: 999px;
+            padding: 4px 14px;
+            font: 12px/16px Arial, Helvetica, sans-serif;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .ts-btn.primary { background: #0070b6; color: #ffffff; }
+        .ts-btn:hover { background: #e3eef6; }
+        .ts-btn.primary:hover { background: #005a93; }
+
+        /* ---- Evolution table inside bottomPanel ---- */
+        #tab-evolution .evo-intro {
+            font: 12px/16px Arial, Helvetica, sans-serif;
+            color: #5a6d80;
+            margin: 0 0 10px;
+        }
+        .evo-table {
+            width: 100%;
+            border-collapse: collapse;
+            font: 12px/14px Arial, Helvetica, sans-serif;
+        }
+        .evo-table th {
+            text-align: left;
+            background: #f3f8fc;
+            color: #1a3c5e;
+            border: 1px solid #ced4da;
+            padding: 6px 6px;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+        .evo-table td {
+            border: 1px solid #ced4da;
+            padding: 6px 6px;
+            color: #1a3c5e;
+            background: #ffffff;
+        }
+        .evo-table tr.dimmed td { opacity: 0.42; }
+        .evo-table tr.in-range td { background: #eaf4fb; }
+        .evo-table td.num { text-align: right; white-space: nowrap; }
+        .evo-summary {
+            margin-top: 10px;
+            padding: 8px 10px;
+            background: #f3f8fc;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font: 12px/16px Arial, Helvetica, sans-serif;
+            color: #1a3c5e;
+        }
+        .evo-summary strong { color: #0070b6; }
+        .evo-note {
+            margin-top: 8px;
+            font: 11px/14px Arial, Helvetica, sans-serif;
+            color: #5a6d80;
+            font-style: italic;
+        }
     </style>
     <title>FAO Grantees Map</title>
 </head>
 
 <body>
 
-    <!-- Page title overlay -->
-    <!-- <div class="page-title-overlay">
-        <span style="font-size: 28px; text-shadow: -2px -2px 2px black;">FAO </span>
-        <span style="color: #0070b6; font-size: 28px; text-shadow: -2px -2px 2px #0070b6;">Grantees</span>
-    </div> -->
+    <!-- Top mode switch: Map View vs Evolution of FFF Support -->
+    <nav class="map-mode-tabs" id="mapModeTabs" aria-label="Map mode">
+        <button class="mm-tab active" data-mode="overview" type="button">Map View</button>
+        <button class="mm-tab" data-mode="evolution" type="button">Evolution of FFF Support — “Eight Years of FFF”</button>
+    </nav>
+
+    <!-- Filters below tabs (collapsible, collapsed by default) -->
+    <div class="filter-bar-wrap" id="filterBarWrap">
+        <button class="filter-toggle" id="filterToggle" type="button" aria-expanded="false" aria-controls="granteeFilterBar">Filters ▾</button>
+        <div id="granteeFilterBar" class="grantee-filter collapsed"></div>
+    </div>
 
     <!-- Full-screen map -->
-    <div id="map">
-        <div id="granteeFilterBar" class="grantee-filter"></div>
+    <div id="map"></div>
+
+    <!-- Evolution timeline overlay (bottom centre) — visible only in evolution mode -->
+    <div id="evolutionOverlay" aria-label="Time series range">
+        <div class="ts-title">Evolution of FFF Support — “Eight Years of FFF”</div>
+        <p class="ts-subtitle">A time-series map showing FFF expansion — drag the two markers to select a range</p>
+        <div class="ts-range-wrap" id="tsRangeWrap">
+            <div class="ts-track" id="tsTrack">
+                <div class="ts-fill" id="tsFill"></div>
+                <div class="ts-thumb from" id="tsThumbFrom" role="slider" aria-label="From year" tabindex="0"><span class="ts-tip" id="tsTipFrom">2019–20</span></div>
+                <div class="ts-thumb to" id="tsThumbTo" role="slider" aria-label="To year" tabindex="0"><span class="ts-tip" id="tsTipTo">2025–26</span></div>
+            </div>
+            <div class="ts-ticks" id="tsTicks"></div>
+            <div class="ts-range-labels">
+                <span>From: <strong id="tsFromLabel">2019–20</strong></span>
+                <span>To: <strong class="to" id="tsToLabel">2025–26</strong></span>
+            </div>
+        </div>
+        <div class="ts-controls">
+            <button class="ts-btn primary" id="tsPlayBtn" type="button">▶ Play</button>
+            <button class="ts-btn" id="tsResetBtn" type="button">Reset</button>
+        </div>
     </div>
 
     <!-- Left Panel (Grantees list) -->
@@ -523,18 +782,34 @@
             <span id="bottomPanelArrow">›</span> <span class="gf-label">Aggregate</span>
         </button>
         <div class="panel-content">
-            <div class="panel-header">Aggregate</div>
-            <div id="aggOverview"></div>
-            <div><strong>Type of Grant (pie)</strong><canvas id="chartPie"></canvas></div>
-            <div><strong>Commodities (bar)</strong><canvas id="chartBar"></canvas></div>
-            <div><strong>Grant flow (sankey)</strong><svg id="chartSankey"></svg></div>
-            
-            <div class="panel-header" style="margin-top: 15px;">Timeline</div>
-            <p class="text-muted mb-2">(no timeline data yet)</p>
-            <input type="range" min="0" max="0" value="0" disabled style="width:100%;">
-            
-            <div class="panel-header" style="margin-top: 15px;">Data Table</div>
-            <table class="table table-bordered" id="mainTable" width="100%" cellspacing="0"></table>
+            <div id="tab-aggregate">
+                <div class="panel-header">Aggregate</div>
+                <div id="aggOverview"></div>
+                <div><strong>Type of Grant (pie)</strong><canvas id="chartPie"></canvas></div>
+                <div><strong>Commodities (bar)</strong><canvas id="chartBar"></canvas></div>
+                <div><strong>Grant flow (sankey)</strong><svg id="chartSankey"></svg></div>
+                <div class="panel-header" style="margin-top: 15px;">Data Table</div>
+                <table class="table table-bordered" id="mainTable" width="100%" cellspacing="0"></table>
+            </div>
+            <div id="tab-evolution">
+                <div class="panel-header">Evolution of FFF Support — “Eight Years of FFF”</div>
+                <p class="evo-intro">A time-series map showing FFF expansion. Each row counts <strong>first appearance</strong> in that fiscal year (new grantees / new locations / new enterprises). Grant amount column is kept blank — data not available.</p>
+                <table class="evo-table" id="evoTable">
+                    <thead>
+                        <tr>
+                            <th>Year</th>
+                            <th>New grantees</th>
+                            <th>New locations</th>
+                            <th>New enterprises / products</th>
+                            <th>Grant amount</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <div class="evo-summary" id="evoSummary"></div>
+                <div style="margin-top:10px;"><canvas id="evoChart" height="140"></canvas></div>
+                <p class="evo-note">New = first time that grantee / district-municipality / clean <code>subcategory</code> appears. Enterprises counted from clean <code>subcategory</code> (distinct), not raw commodity string.</p>
+            </div>
         </div>
     </div>
 
@@ -566,9 +841,428 @@
         }, 300);
     }
     
+    // ---- Map mode switch (top nav) ----
+    function setMapMode(mode) {
+        var isEvo = mode === 'evolution';
+        document.body.classList.toggle('map-mode-evolution', isEvo);
+        document.querySelectorAll('.mm-tab').forEach(function(btn){
+            var active = btn.getAttribute('data-mode') === mode;
+            btn.classList.toggle('active', active);
+        });
+        // When entering evolution, open bottom panel to show the table (if collapsed)
+        if (isEvo) {
+            var bp = document.getElementById('bottomPanel');
+            if (bp && bp.classList.contains('collapsed')) {
+                bp.classList.remove('collapsed');
+                var arr = document.getElementById('bottomPanelArrow');
+                if (arr) arr.textContent = '‹';
+                setTimeout(function(){
+                    var m = (typeof map !== 'undefined' && map instanceof L.Map) ? map : (L.map && L.map.instances && L.map.instances[0]);
+                    if (m && m.invalidateSize) m.invalidateSize();
+                }, 320);
+            }
+        }
+        // Re-apply evolution filter if map already initialized
+        if (typeof window._evoApplyFilter === 'function') { window._evoApplyFilter(); }
+    }
+    document.addEventListener('click', function(e){
+        var btn = e.target.closest('.mm-tab');
+        if (!btn) return;
+        setMapMode(btn.getAttribute('data-mode'));
+    });
+    // ---- Filter bar collapsible (collapsed by default, below tabs) ----
+    (function(){
+        function toggleFilters(){
+            var bar = document.getElementById('granteeFilterBar');
+            var btn = document.getElementById('filterToggle');
+            if (!bar || !btn) return;
+            var willOpen = bar.classList.contains('collapsed');
+            bar.classList.toggle('collapsed', !willOpen);
+            btn.classList.toggle('active', willOpen);
+            btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+            btn.textContent = willOpen ? 'Filters ▴' : 'Filters ▾';
+        }
+        document.addEventListener('click', function(e){
+            var t = e.target.closest('#filterToggle');
+            if (t) { e.preventDefault(); toggleFilters(); }
+        });
+        // Close when clicking outside filter area (optional)
+        document.addEventListener('click', function(e){
+            var bar = document.getElementById('granteeFilterBar');
+            var wrap = document.getElementById('filterBarWrap');
+            if (!bar || bar.classList.contains('collapsed')) return;
+            if (wrap && wrap.contains(e.target)) return;
+            // Don't auto-close on map interactions - only explicit toggle for now
+        });
+    })();
+
     // Wait for DOMContentLoaded to ensure all deferred scripts and DOM are ready
     document.addEventListener('DOMContentLoaded', function() {
     var highlightLayer;
+    // ---- Evolution (Eight Years) state ----
+    var FISCAL_LABELS = ['2019–20','2020–21','2021–22','2022–23','2023–24','2024–25','2025–26'];
+    var evoFromIdx = 0, evoToIdx = 6, evoPlayTimer = null;
+    var evoPerYear = null; // array of {newGrantees,newLocations,newEnterprises, grantAmount:''}
+    var evoFirstFiscalByOrg = {}; // org_id string -> fiscal label
+    var evoFiscalByGrant = []; // grant -> fiscal label
+    var evoLocationFirstFiscal = {}; // location key -> fiscal
+    var evoSubcatFirstFiscal = {}; // subcategory -> fiscal
+    var evoChartInstance = null;
+
+    function evoMonthToNum(m) {
+        var map = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+        return map[m.slice(0,3).toLowerCase()] || 0;
+    }
+    function parseFiscalYear(periodStr) {
+        if (!periodStr) return null;
+        var s = String(periodStr).split('\n')[0];
+        var mm = s.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})/i);
+        var year = 0, month = 0;
+        if (mm) { month = evoMonthToNum(mm[1]); year = parseInt(mm[2],10); }
+        else {
+            var yy = s.match(/(\d{4})/);
+            if (yy) year = parseInt(yy[1],10);
+            else return null;
+        }
+        // Nepal FY: Shrawan (July) start. month>=7 -> FY year–year+1 else (year-1)–year
+        var fyStart = (month >= 7 && month !== 0) ? year : (month === 0 ? year : year - (month >= 7 ? 0 : 1));
+        // fallback for month==0 (only year): map year to FY containing that year
+        if (month === 0) {
+            // if we only have year, treat as FY year-1 – year if year >=2020 as most grants start early year
+            // simplest: if year==2020 -> 2019–20
+            fyStart = year - 1;
+            if (year < 2019) fyStart = 2019;
+        }
+        if (fyStart < 2019) fyStart = 2019;
+        if (fyStart > 2025) fyStart = 2025;
+        var shortY = String(fyStart+1).slice(-2);
+        // use en-dash to match FISCAL_LABELS
+        return fyStart + '–' + shortY;
+    }
+
+    function buildEvoData(attr) {
+        var grants = attr.grants || [];
+        var orgs = attr.orgs || [];
+        // map org_id string -> location key (district || municipality || location)
+        var locByOrg = {};
+        (orgs || []).forEach(function(o){
+            var k = String(o.org_id);
+            var loc = (o.district && o.district.trim() ? o.district.trim() : (o.municipality && o.municipality.trim() ? o.municipality.trim() : (o.location||'').trim()));
+            if (!loc) loc = 'Loc-'+k;
+            locByOrg[k] = loc;
+        });
+        // per grant fiscal
+        evoFiscalByGrant = [];
+        var fiscalByGrantIdx = [];
+        grants.forEach(function(g,i){
+            var fy = parseFiscalYear(g.implementation_period);
+            evoFiscalByGrant[i] = fy;
+            fiscalByGrantIdx[i] = fy ? FISCAL_LABELS.indexOf(fy) : -1;
+        });
+        // first fiscal per org (earliest grant)
+        evoFirstFiscalByOrg = {};
+        grants.forEach(function(g,i){
+            var k = String(g.org_id);
+            var idx = fiscalByGrantIdx[i];
+            if (idx < 0) return;
+            var cur = evoFirstFiscalByOrg[k];
+            if (cur == null || idx < FISCAL_LABELS.indexOf(cur)) evoFirstFiscalByOrg[k] = FISCAL_LABELS[idx];
+        });
+        // first fiscal per location (based on org first appearance)
+        evoLocationFirstFiscal = {};
+        Object.keys(evoFirstFiscalByOrg).forEach(function(orgId){
+            var loc = locByOrg[orgId] || orgId;
+            var fy = evoFirstFiscalByOrg[orgId];
+            var cur = evoLocationFirstFiscal[loc];
+            if (cur == null || FISCAL_LABELS.indexOf(fy) < FISCAL_LABELS.indexOf(cur)) evoLocationFirstFiscal[loc] = fy;
+        });
+        // first fiscal per clean subcategory (distinct)
+        evoSubcatFirstFiscal = {};
+        grants.forEach(function(g,i){
+            var sc = (g.subcategory||'').trim();
+            if (!sc || sc.toLowerCase() === 'unclassified') {
+                // use enterprise_commodity as fallback only if subcategory is Unclassified? per spec use clean subcategory, so skip Unclassified for novelty
+                return;
+            }
+            var fy = evoFiscalByGrant[i];
+            if (!fy) return;
+            var cur = evoSubcatFirstFiscal[sc];
+            if (cur == null || FISCAL_LABELS.indexOf(fy) < FISCAL_LABELS.indexOf(cur)) evoSubcatFirstFiscal[sc] = fy;
+        });
+        // aggregate per year: counts of first appearances
+        evoPerYear = FISCAL_LABELS.map(function(lbl){ return {label:lbl, newGrantees:0, newLocations:0, newEnterprises:0}; });
+        Object.keys(evoFirstFiscalByOrg).forEach(function(orgId){
+            var lbl = evoFirstFiscalByOrg[orgId];
+            var idx = FISCAL_LABELS.indexOf(lbl);
+            if (idx>=0) evoPerYear[idx].newGrantees++;
+        });
+        Object.keys(evoLocationFirstFiscal).forEach(function(loc){
+            var lbl = evoLocationFirstFiscal[loc];
+            var idx = FISCAL_LABELS.indexOf(lbl);
+            if (idx>=0) evoPerYear[idx].newLocations++;
+        });
+        Object.keys(evoSubcatFirstFiscal).forEach(function(sc){
+            var lbl = evoSubcatFirstFiscal[sc];
+            var idx = FISCAL_LABELS.indexOf(lbl);
+            if (idx>=0) evoPerYear[idx].newEnterprises++;
+        });
+        // For years with zero (e.g. 2019–20 mapping) ensure grantees at least reflect grants if any fallback
+        // 2019–20 should count grants whose fy is 2019–20
+        renderEvoTable();
+        updateEvoChart();
+    }
+
+    function renderEvoTable(){
+        var tbody = document.querySelector('#evoTable tbody');
+        if (!tbody || !evoPerYear) return;
+        tbody.innerHTML = '';
+        FISCAL_LABELS.forEach(function(lbl, idx){
+            var row = evoPerYear[idx];
+            var tr = document.createElement('tr');
+            var inRange = (idx >= evoFromIdx && idx <= evoToIdx);
+            tr.className = inRange ? 'in-range' : 'dimmed';
+            tr.innerHTML = '<td><strong>'+lbl+'</strong></td>'+
+                '<td class="num">'+row.newGrantees+'</td>'+
+                '<td class="num">'+row.newLocations+'</td>'+
+                '<td class="num">'+row.newEnterprises+'</td>'+
+                '<td class="num"></td>';
+            tbody.appendChild(tr);
+        });
+        // summary for selected range (distinct union is already per-year first-appearance sum within range == total new in range)
+        var sumG=0,sumL=0,sumE=0;
+        for(var i=evoFromIdx;i<=evoToIdx;i++){ sumG+=evoPerYear[i].newGrantees; sumL+=evoPerYear[i].newLocations; sumE+=evoPerYear[i].newEnterprises; }
+        var sumEl = document.getElementById('evoSummary');
+        if (sumEl) {
+            var rangeLabel = (evoFromIdx===evoToIdx) ? FISCAL_LABELS[evoFromIdx] : FISCAL_LABELS[evoFromIdx]+' → '+FISCAL_LABELS[evoToIdx];
+            sumEl.innerHTML = 'Selected: <strong>'+rangeLabel+'</strong> — <strong>'+sumG+'</strong> new grantees · <strong>'+sumL+'</strong> new locations · <strong>'+sumE+'</strong> new enterprises/products · Grant amount: <strong></strong><br/><span style="color:#5a6d80">Map shows grantees whose first grant falls within the selected range.</span>';
+        }
+        // ticks highlight
+        var tickEls = document.querySelectorAll('#tsTicks span');
+        tickEls.forEach(function(el,i){ el.classList.toggle('active', i>=evoFromIdx && i<=evoToIdx); });
+    }
+
+    function updateEvoChart(){
+        var ctx = document.getElementById('evoChart');
+        if (!ctx || typeof Chart==='undefined' || !evoPerYear) return;
+        var labels = FISCAL_LABELS;
+        var dataG = evoPerYear.map(function(r){return r.newGrantees;});
+        var bg = labels.map(function(_,i){ return (i>=evoFromIdx && i<=evoToIdx) ? '#0070b6' : '#d0dbe6'; });
+        if (evoChartInstance) { evoChartInstance.destroy(); }
+        evoChartInstance = new Chart(ctx, {
+            type:'bar',
+            data:{ labels: labels, datasets:[
+                { label:'New grantees', data:dataG, backgroundColor:bg, borderColor:'#0070b6', borderWidth:1 },
+                { label:'New locations', data:evoPerYear.map(function(r){return r.newLocations;}), backgroundColor:'rgba(0,0,0,0)', borderColor:'rgba(0,0,0,0)', hidden:true },
+                { label:'New enterprises', data:evoPerYear.map(function(r){return r.newEnterprises}), backgroundColor:'rgba(0,0,0,0)', borderColor:'rgba(0,0,0,0)', hidden:true }
+            ]},
+            options:{
+                responsive:true,
+                plugins:{ legend:{display:false}, tooltip:{enabled:true} },
+                scales:{ y:{ beginAtZero:true, ticks:{precision:0} } }
+            }
+        });
+    }
+
+    function applyEvolutionFilter(){
+        var allowedOrgs = null;
+        if (evoPerYear && evoFirstFiscalByOrg) {
+            allowedOrgs = {};
+            Object.keys(evoFirstFiscalByOrg).forEach(function(orgId){
+                var lbl = evoFirstFiscalByOrg[orgId];
+                var idx = FISCAL_LABELS.indexOf(lbl);
+                if (idx>=evoFromIdx && idx<=evoToIdx) allowedOrgs[orgId]=true;
+            });
+        }
+        // also include orgs whose any grant (not just first) falls within range? per spec "new grantees" is first-appearance,
+        // but map should show all grantees active within range — we use first-appearance set per user phrase "new grantees"
+        // If you want active grantees (any grant in range) uncomment below:
+        // (evoFiscalByGrant expanded) — but keep first-appearance per current spec
+        try {
+            if (typeof clusters_Grantees !== 'undefined' && typeof layer_Grantees !== 'undefined' && layer_Grantees.eachLayer) {
+                // need current commodity/type filters — read pills if present
+                var bar = document.getElementById('granteeFilterBar');
+                var checkedType={}, checkedComm={}, checkedOrg={};
+                if (bar) {
+                    bar.querySelectorAll('.gf-type').forEach(function(cb){ checkedType[cb.value]=cb.checked; });
+                    bar.querySelectorAll('.gf-commodity').forEach(function(cb){ checkedComm[cb.value]=cb.checked; });
+                    bar.querySelectorAll('.gf-orgtype').forEach(function(cb){ checkedOrg[cb.value]=cb.checked; });
+                }
+                    var hasTypeFilter = Object.keys(checkedType).length>0;
+                var hasCommFilter = Object.keys(checkedComm).length>0;
+                var hasOrgFilter = Object.keys(checkedOrg).length>0;
+                layer_Grantees.eachLayer(function(l){
+                    var p = l.feature.properties;
+                    var timeOk = true;
+                    var isEvoMode = document.body.classList.contains('map-mode-evolution');
+                    if (isEvoMode && allowedOrgs) {
+                        timeOk = !!allowedOrgs[String(p.S_N)];
+                    }
+                    var typeOk = !hasTypeFilter || !!checkedType[p.Type_of_Grant];
+                    var commOk = !hasCommFilter || (p.subcategories && p.subcategories.length ? p.subcategories.some(function(c){return !!checkedComm[c];}) : true);
+                    var orgOk = !hasOrgFilter || (p.organization_type ? !!checkedOrg[p.organization_type] : true);
+                    var show = timeOk && typeOk && commOk && orgOk;
+                    if (show) { if (!clusters_Grantees.hasLayer(l)) clusters_Grantees.addLayer(l); }
+                    else { if (clusters_Grantees.hasLayer(l)) clusters_Grantees.removeLayer(l); }
+                });
+            }
+        } catch(e){ /* map not ready yet */ }
+    }
+    window._evoApplyFilter = applyEvolutionFilter;
+
+    function updateSliderUI(){
+        var track = document.getElementById('tsTrack');
+        var fill = document.getElementById('tsFill');
+        var tFrom = document.getElementById('tsThumbFrom');
+        var tTo = document.getElementById('tsThumbTo');
+        if (!track || !fill || !tFrom || !tTo) return;
+        var n = FISCAL_LABELS.length;
+        if (evoFromIdx > evoToIdx) { var tmp=evoFromIdx; evoFromIdx=evoToIdx; evoToIdx=tmp; }
+        var fromPct = (evoFromIdx/(n-1))*100;
+        var toPct = (evoToIdx/(n-1))*100;
+        tFrom.style.left = fromPct+'%';
+        tTo.style.left = toPct+'%';
+        fill.style.left = fromPct+'%';
+        fill.style.width = (toPct-fromPct)+'%';
+        document.getElementById('tsTipFrom').textContent = FISCAL_LABELS[evoFromIdx];
+        document.getElementById('tsTipTo').textContent = FISCAL_LABELS[evoToIdx];
+        document.getElementById('tsFromLabel').textContent = FISCAL_LABELS[evoFromIdx];
+        document.getElementById('tsToLabel').textContent = FISCAL_LABELS[evoToIdx];
+        renderEvoTable();
+        updateEvoChart();
+        applyEvolutionFilter();
+    }
+
+    function initEvolutionSlider(){
+        var ticksEl = document.getElementById('tsTicks');
+        if (ticksEl) {
+            ticksEl.innerHTML = '';
+            FISCAL_LABELS.forEach(function(lbl, i){
+                var s=document.createElement('span');
+                s.textContent=lbl;
+                s.style.cursor='pointer';
+                s.addEventListener('click', function(){
+                    // clicking a tick moves nearest thumb
+                    var dFrom = Math.abs(i - evoFromIdx), dTo = Math.abs(i - evoToIdx);
+                    if (dFrom <= dTo) evoFromIdx = i; else evoToIdx = i;
+                    if (evoFromIdx > evoToIdx) { var t=evoFromIdx; evoFromIdx=evoToIdx; evoToIdx=t; }
+                    updateSliderUI();
+                });
+                ticksEl.appendChild(s);
+            });
+        }
+        var track = document.getElementById('tsTrack');
+        var dragging = null; // 'from' or 'to'
+        function idxFromX(clientX){
+            var rect = track.getBoundingClientRect();
+            var x = clientX - rect.left;
+            var pct = x / rect.width;
+            pct = Math.max(0, Math.min(1, pct));
+            var n = FISCAL_LABELS.length;
+            var idx = Math.round(pct*(n-1));
+            return Math.max(0, Math.min(n-1, idx));
+        }
+        function onDown(e, which){
+            dragging = which;
+            e.preventDefault();
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+            document.addEventListener('touchmove', onTouchMove, {passive:false});
+            document.addEventListener('touchend', onUp);
+        }
+        function onMove(e){
+            if (!dragging) return;
+            var idx = idxFromX(e.clientX);
+            if (dragging==='from') evoFromIdx = idx; else evoToIdx = idx;
+            if (evoFromIdx > evoToIdx) {
+                // prevent crossing: clamp
+                if (dragging==='from') evoFromIdx = evoToIdx;
+                else evoToIdx = evoFromIdx;
+            }
+            updateSliderUI();
+        }
+        function onTouchMove(e){
+            if (!dragging || !e.touches[0]) return;
+            e.preventDefault();
+            var idx = idxFromX(e.touches[0].clientX);
+            if (dragging==='from') evoFromIdx = idx; else evoToIdx = idx;
+            if (evoFromIdx > evoToIdx) {
+                if (dragging==='from') evoFromIdx = evoToIdx;
+                else evoToIdx = evoFromIdx;
+            }
+            updateSliderUI();
+        }
+        function onUp(){
+            dragging=null;
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            document.removeEventListener('touchmove', onTouchMove);
+            document.removeEventListener('touchend', onUp);
+        }
+        var tFrom = document.getElementById('tsThumbFrom');
+        var tTo = document.getElementById('tsThumbTo');
+        if (tFrom) {
+            tFrom.addEventListener('mousedown', function(e){ onDown(e,'from'); });
+            tFrom.addEventListener('touchstart', function(e){ onDown(e.touches[0] ? {clientX:e.touches[0].clientX, preventDefault:function(){e.preventDefault();}} : e,'from'); }, {passive:false});
+        }
+        if (tTo) {
+            tTo.addEventListener('mousedown', function(e){ onDown(e,'to'); });
+            tTo.addEventListener('touchstart', function(e){ onDown(e.touches[0] ? {clientX:e.touches[0].clientX, preventDefault:function(){e.preventDefault();}} : e,'to'); }, {passive:false});
+        }
+        if (track) {
+            track.addEventListener('click', function(e){
+                if (e.target.closest('.ts-thumb')) return;
+                var idx = idxFromX(e.clientX);
+                var dFrom = Math.abs(idx - evoFromIdx), dTo = Math.abs(idx - evoToIdx);
+                if (dFrom <= dTo) evoFromIdx = idx; else evoToIdx = idx;
+                if (evoFromIdx > evoToIdx) { var t=evoFromIdx; evoFromIdx=evoToIdx; evoToIdx=t; }
+                updateSliderUI();
+            });
+        }
+        var playBtn = document.getElementById('tsPlayBtn');
+        var resetBtn = document.getElementById('tsResetBtn');
+        if (playBtn) playBtn.addEventListener('click', function(){
+            if (evoPlayTimer) {
+                clearInterval(evoPlayTimer); evoPlayTimer=null;
+                playBtn.textContent='▶ Play';
+                return;
+            }
+            playBtn.textContent='⏸ Pause';
+            var cur = evoFromIdx;
+            evoFromIdx = 0; evoToIdx = cur;
+            updateSliderUI();
+            evoPlayTimer = setInterval(function(){
+                if (evoToIdx >= FISCAL_LABELS.length-1) {
+                    clearInterval(evoPlayTimer); evoPlayTimer=null;
+                    playBtn.textContent='▶ Play';
+                    return;
+                }
+                evoToIdx++;
+                updateSliderUI();
+            }, 1100);
+        });
+        if (resetBtn) resetBtn.addEventListener('click', function(){
+            if (evoPlayTimer){ clearInterval(evoPlayTimer); evoPlayTimer=null; var pb=document.getElementById('tsPlayBtn'); if(pb) pb.textContent='▶ Play'; }
+            evoFromIdx=0; evoToIdx=6;
+            updateSliderUI();
+        });
+        // keyboard nudging
+        [tFrom,tTo].forEach(function(el, isFrom){
+            if(!el) return;
+            el.addEventListener('keydown', function(e){
+                var delta=0;
+                if(e.key==='ArrowLeft' || e.key==='ArrowDown') delta=-1;
+                if(e.key==='ArrowRight' || e.key==='ArrowUp') delta=1;
+                if(delta===0) return;
+                e.preventDefault();
+                if(el===tFrom){ evoFromIdx=Math.max(0,Math.min(6,evoFromIdx+delta)); if(evoFromIdx>evoToIdx) evoFromIdx=evoToIdx; }
+                else { evoToIdx=Math.max(0,Math.min(6,evoToIdx+delta)); if(evoToIdx<evoFromIdx) evoToIdx=evoFromIdx; }
+                updateSliderUI();
+            });
+        });
+        updateSliderUI();
+    }
+    // init slider early (ticks) once DOM ready
+    setTimeout(initEvolutionSlider, 400);
 
     // ---- Hover popup: mirrors the #aggregate (info) content as a floating
     //      box when hovering a grantee point or cluster, then removes it on
@@ -782,6 +1476,8 @@
                 p.area_direct_ha = areaDirect || null;
                 p.area_contributed_ha = areaContrib || null;
             });
+            // Build evolution time-series data (Eight Years) now that grants/orgs are available
+            try { buildEvoData(attr); updateSliderUI(); } catch(e) { console.warn('evo build failed', e); }
             // Build the Type-of-Grant / Commodities / Organization Type filter
             // pills now that features exist and have organization_type merged.
             buildGranteeFilters();
@@ -946,7 +1642,7 @@
                 e.preventDefault();
                 cb.checked = !cb.checked;
                 lbl.classList.toggle('checked', cb.checked);
-                apply();
+                if (typeof applyEvolutionFilter === 'function') applyEvolutionFilter(); else apply();
             });
         });
         // Commodities dropdown: clicking the toggle opens/closes the panel;
@@ -974,7 +1670,7 @@
                 cb.checked = checked;
                 cb.closest('label.gf-value').classList.toggle('checked', checked);
             });
-            apply();
+            if (typeof applyEvolutionFilter === 'function') applyEvolutionFilter(); else apply();
         }
         ddPanel.querySelector('#commSelectAll').addEventListener('click', function(e) {
             e.preventDefault();

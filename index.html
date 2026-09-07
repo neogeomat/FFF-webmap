@@ -105,12 +105,12 @@
         }
 
         /* Right panel is now at the BOTTOM → slide down off-canvas when collapsed */
-        .map-panel.right-panel.collapsed {
+        .map-panel.bottom-panel.collapsed {
             transform: translateY(calc(100% + 10px));
         }
 
         /* Bottom panel is now on the RIGHT → slide right off-canvas when collapsed */
-        .map-panel.bottom-panel.collapsed {
+        .map-panel.right-panel.collapsed {
             transform: translateX(calc(100% + 10px));
         }
         
@@ -156,7 +156,7 @@
             border-radius: 0 4px 4px 0;
         }
         /* Right panel is now at the BOTTOM → toggle protrudes ABOVE the panel */
-        .right-panel .panel-toggle-btn {
+        .bottom-panel .panel-toggle-btn {
             position: absolute;
             top: -30px;
             left: 50%;
@@ -170,7 +170,7 @@
             border-radius: 4px 4px 0 0;
         }
         /* Bottom panel is now on the RIGHT → toggle protrudes to the LEFT of the panel */
-        .bottom-panel .panel-toggle-btn {
+        .right-panel .panel-toggle-btn {
             position: absolute;
             left: -85px;
             top: 50%;
@@ -208,8 +208,8 @@
             bottom: 100px;
         }
         
-        /* Details panel — now at the BOTTOM (#rightPanel holds #aggregate) */
-        #rightPanel {
+        /* Details panel — now at the BOTTOM (#bottomPanel holds #aggregate) */
+        #bottomPanel {
             left: 10px;
             right: 10px;
             bottom: 0;
@@ -217,8 +217,8 @@
             border-radius: 8px 8px 0 0;
         }
         
-        /* Aggregate panel — now on the RIGHT side (#bottomPanel holds charts) */
-        #bottomPanel {
+        /* Aggregate (right) panel — now on the RIGHT side (#rightPanel holds charts + legend) */
+        #rightPanel {
             top: 80px;
             right: 10px;
             width: 340px;
@@ -285,6 +285,113 @@
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
         }
         .leaflet-tooltip.org-tip-name::before { display: none; }
+
+        /* ---- Commodity pins (literal crop drawings) ---- */
+        .commodity-pin {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.45), 0 0 0 2px rgba(255,255,255,0.85);
+            cursor: pointer;
+        }
+        .commodity-emoji { font-size: 16px; line-height: 1; }
+        .commodity-stack { display: flex; gap: 2px; align-items: center; }
+        .mini-pin {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+            font-size: 11px;
+            line-height: 1;
+        }
+        /* ---- Commodity legend — floating overlay, fitted to contents, moves with both panels ---- */
+        .commodity-legend {
+            position: fixed;
+            bottom: 360px;
+            right: 360px;
+            width: 190px;
+            max-height: 38vh;
+            z-index: 1001;
+            background: rgba(255,255,255,0.97);
+            border: 1px solid #0070b6;
+            border-radius: 8px;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.32);
+            padding: 6px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            overflow-y: auto;
+            font: 11px/13px Arial, Helvetica, sans-serif;
+            color: #1a3c5e;
+            height: auto;
+            transition: bottom 0.3s ease, right 0.3s ease;
+        }
+        .commodity-legend.collapsed .legend-content { display: none; }
+        .commodity-legend.collapsed { height: auto; }
+        .commodity-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #f3f8fc;
+            border: 1px solid #ced4da;
+            border-radius: 999px;
+            padding: 2px 6px;
+            white-space: nowrap;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.18s, color 0.18s, border-color 0.18s, opacity 0.18s;
+            font-size: 10px;
+        }
+        .commodity-legend-item.checked {
+            background: #0070b6;
+            color: #ffffff;
+            border-color: #0070b6;
+        }
+        .commodity-legend-item:not(.checked) { opacity: 0.6; }
+        .commodity-legend-item .gf-box { display: inline-flex; align-items: center; justify-content: center; width: 12px; height: 12px; border: 1px solid currentColor; border-radius: 2px; font-size: 10px; line-height: 1; }
+        .commodity-legend-item:not(.checked) .gf-box { opacity: 0.3; }
+        .commodity-legend-item .mini-pin { width: 18px; height: 18px; font-size: 10px; }
+        .commodity-legend-title { font-weight: bold; color: #0070b6; margin-right: 4px; white-space: nowrap; }
+        .legend-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: bold;
+            color: #0070b6;
+            font-size: 12px;
+            padding: 4px 0;
+            cursor: pointer;
+            user-select: none;
+            border-bottom: 1px solid #ced4da;
+            margin-bottom: 6px;
+        }
+        .legend-section { display: flex; flex-direction: column; gap: 4px; }
+        .legend-section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 600;
+            color: #1a3c5e;
+            font-size: 11px;
+            cursor: pointer;
+            user-select: none;
+            padding: 2px 0;
+        }
+        .legend-section-content {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .legend-section.collapsed .legend-section-content { display: none; }
+        .legend-section.collapsed .legend-section-header span:last-child { transform: rotate(-90deg); }
 
         /* ---- Cluster markers (orange, distinct from blue points) ---- */
         .grantee-cluster {
@@ -368,71 +475,13 @@
             margin-left: 0;
             padding-left: 0;
         }
-        /* ---- Commodities dropdown filter ---- */
-        .gf-dd {
-            position: relative;
-            display: inline-flex;
-            flex-direction: column;
-            align-items: flex-start;
-        }
-        .gf-dd-toggle {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            margin: 0;
-            padding: 5px 14px;
-            border: 1px solid #0070b6;
-            border-radius: 999px;            /* curved sides (pill), like gf-value */
-            background: #f3f8fc;
-            font: 13px/16px Arial, Helvetica, sans-serif;
-            color: #1a3c5e;
-            cursor: pointer;
-            user-select: none;
-        }
-        .gf-dd-toggle:hover {
-            background: #e3eef6;
-        }
-        .gf-dd-caret {
-            font-size: 11px;
-            color: #0070b6;
-            transition: transform 0.2s;
-        }
-        .gf-dd-toggle.gf-dd-active .gf-dd-caret {
-            transform: rotate(180deg);
-        }
-        .gf-dd-panel {
-            display: none;
-            position: absolute;
-            top: calc(100% + 4px);
-            left: 0;
-            z-index: 1002;                   /* above the map panes / filter bar */
-            min-width: 220px;
-            max-height: 220px;
-            overflow-y: auto;
-            background: #ffffff;
-            border: 1px solid #ced4da;
-            border-radius: 6px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
-            padding: 8px;
-        }
-        .gf-dd-panel.gf-dd-open {
-            display: block;
-        }
-        .gf-dd-panel .gf-value {
+        /* ---- Commodities filter (div format, same as legend) ---- */
+        .gf-commodities-list {
             display: flex;
-            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
             width: 100%;
-            margin-bottom: 4px;
-        }
-        .gf-dd-panel .gf-value:last-child {
-            margin-bottom: 0;
-        }
-        .gf-dd-actions {
-            display: flex;
-            gap: 8px;
-            padding-bottom: 6px;
-            margin-bottom: 6px;
-            border-bottom: 1px solid #ced4da;
+            margin-top: 4px;
         }
         .gf-dd-btn {
             border: 1px solid #0070b6;
@@ -674,7 +723,7 @@
         .ts-btn:hover { background: #e3eef6; }
         .ts-btn.primary:hover { background: #005a93; }
 
-        /* ---- Evolution table inside bottomPanel ---- */
+        /* ---- Evolution table inside rightPanel ---- */
         #tab-evolution .evo-intro {
             font: 12px/16px Arial, Helvetica, sans-serif;
             color: #5a6d80;
@@ -740,6 +789,9 @@
     <!-- Full-screen map -->
     <div id="map"></div>
 
+    <!-- Commodity legend — floating overlay, fitted to contents, moves with panels -->
+    <div id="commodityLegend" class="commodity-legend" aria-label="Commodity legend"></div>
+
     <!-- Evolution timeline overlay (bottom centre) — visible only in evolution mode -->
     <div id="evolutionOverlay" aria-label="Time series range">
         <div class="ts-title">Evolution of FFF Support — “Eight Years of FFF”</div>
@@ -776,9 +828,9 @@
     </div>
 
     <!-- Right Panel (Details) — now at the BOTTOM; holds #aggregate (info panel) -->
-    <div id="rightPanel" class="map-panel right-panel collapsed">
-        <button class="panel-toggle-btn" id="rightPanelToggle" onclick="togglePanel('rightPanel')" title="Toggle Details">
-            <span id="rightPanelArrow">⌄</span> <span class="gf-label">Details</span>
+    <div id="bottomPanel" class="map-panel bottom-panel collapsed">
+        <button class="panel-toggle-btn" id="bottomPanelToggle" onclick="togglePanel('bottomPanel')" title="Toggle Details">
+            <span id="bottomPanelArrow">⌄</span> <span class="gf-label">Details</span>
         </button>
         <div class="panel-content">
             <div class="panel-header">Details</div>
@@ -789,9 +841,9 @@
     </div>
 
     <!-- Bottom Panel (Aggregate, Timeline, Table) — now on the RIGHT side -->
-    <div id="bottomPanel" class="map-panel bottom-panel collapsed">
-        <button class="panel-toggle-btn" id="bottomPanelToggle" onclick="togglePanel('bottomPanel')" title="Toggle Aggregate">
-            <span id="bottomPanelArrow">›</span> <span class="gf-label">Aggregate</span>
+    <div id="rightPanel" class="map-panel right-panel collapsed">
+        <button class="panel-toggle-btn" id="rightPanelToggle" onclick="togglePanel('rightPanel')" title="Toggle Aggregate">
+            <span id="rightPanelArrow">›</span> <span class="gf-label">Aggregate</span>
         </button>
         <div class="panel-content">
             <div id="tab-aggregate">
@@ -838,11 +890,11 @@
         
         if (panelId === 'leftPanel') {
             arrow.textContent = panel.classList.contains('collapsed') ? '›' : '‹';
-        } else if (panelId === 'rightPanel') {
-            // Right panel is now at the BOTTOM → arrow points up/down
-            arrow.textContent = panel.classList.contains('collapsed') ? '⌃' : '⌄';
         } else if (panelId === 'bottomPanel') {
-            // Bottom panel is now on the RIGHT → arrow points left/right
+            // Bottom panel at BOTTOM → arrow points up/down
+            arrow.textContent = panel.classList.contains('collapsed') ? '⌃' : '⌄';
+        } else if (panelId === 'rightPanel') {
+            // Right panel at RIGHT → arrow points left/right
             arrow.textContent = panel.classList.contains('collapsed') ? '›' : '‹';
         }
         
@@ -851,7 +903,21 @@
             var m = (typeof map !== 'undefined' && map instanceof L.Map) ? map : L.map.instances[0];
             if (m && m.invalidateSize) { m.invalidateSize(); }
         }, 300);
+        updateLegendPosition();
     }
+    function updateLegendPosition() {
+        var legend = document.getElementById('commodityLegend');
+        var rightPanel = document.getElementById('rightPanel');
+        var bottomPanel = document.getElementById('bottomPanel');
+        if (!legend) return;
+        var rightCollapsed = rightPanel && rightPanel.classList.contains('collapsed');
+        var bottomCollapsed = bottomPanel && bottomPanel.classList.contains('collapsed');
+        legend.style.right = rightCollapsed ? '100px' : '360px';
+        legend.style.bottom = bottomCollapsed ? '20px' : '360px';
+    }
+    if (document.readyState !== 'loading') updateLegendPosition();
+    else document.addEventListener('DOMContentLoaded', updateLegendPosition);
+    window.addEventListener('load', updateLegendPosition);
     
     // ---- Map mode switch (top nav) ----
     function setMapMode(mode) {
@@ -863,10 +929,10 @@
         });
         // When entering evolution, open bottom panel to show the table (if collapsed)
         if (isEvo) {
-            var bp = document.getElementById('bottomPanel');
+            var bp = document.getElementById('rightPanel');
             if (bp && bp.classList.contains('collapsed')) {
                 bp.classList.remove('collapsed');
-                var arr = document.getElementById('bottomPanelArrow');
+                var arr = document.getElementById('rightPanelArrow');
                 if (arr) arr.textContent = '‹';
                 setTimeout(function(){
                     var m = (typeof map !== 'undefined' && map instanceof L.Map) ? map : (L.map && L.map.instances && L.map.instances[0]);
@@ -876,6 +942,7 @@
         }
         // Re-apply evolution filter if map already initialized
         if (typeof window._evoApplyFilter === 'function') { window._evoApplyFilter(); }
+        updateLegendPosition();
     }
     document.addEventListener('click', function(e){
         var btn = e.target.closest('.mm-tab');
@@ -1479,6 +1546,7 @@
                     if (g.enterprise_classification) { cls[g.enterprise_classification] = true; }
                 });
                 p.subcategories = Object.keys(subs);
+                if (p.subcategories.length === 0) p.subcategories = ['Unclassified'];
                 p.enterprise_classifications = Object.keys(cls);
                 // Aggregate people benefited + restoration area for the overview.
                 var people = 0, areaDirect = 0, areaContrib = 0;
@@ -1498,12 +1566,16 @@
             buildGranteeFilters();
             // Build the left-panel Grantees list (DataTable) now that features exist.
             buildGranteeTable();
+            // Refresh commodity icons (literal crop drawings, stacked mini-icons) now that subcategories known
+            try { if (typeof refreshCommodityIcons === 'function') refreshCommodityIcons(layer_Grantees); } catch(e){ console.warn('refresh icons failed', e); }
+            // Build floating commodity legend (overlay on map)
+            try { buildCommodityLegend(); } catch(e){ console.warn('legend build failed', e); }
         });
 
-        // Suppress the default hover coverage polygon so only the right-panel list shows.
+        // Suppress the default hover coverage polygon so only the bottom-panel list shows.
         clusters_Grantees._showCoverage = function() {};
         clusters_Grantees._hideCoverage = function() {};
-        // Build the right-panel ("#aggregate") list of organizations in a cluster, using the
+        // Build the bottom-panel ("#aggregate") list of organizations in a cluster, using the
         // SAME table format as bio_table_generator so it mirrors individual-node display.
         function clusterOrgTableHTML(cluster) {
             var kids = cluster.getAllChildMarkers();
@@ -1577,6 +1649,7 @@
         var commCounts = {};
         var orgCounts = {};
         var enterpriseCounts = {};
+        function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
         layer_Grantees.eachLayer(function(l) {
             var p = l.feature.properties;
             var t = p.Type_of_Grant;
@@ -1590,54 +1663,106 @@
                 if (c) { enterpriseCounts[c] = (enterpriseCounts[c] || 0) + 1; }
             });
         });
-        var html = '';
-        html += '<div class="gf-group"><span class="gf-title">Type of Grant</span>';
+        // Build filter groups via DOM to keep raw values (no HTML-entity round-trip) and escape only visible labels
+        function createFilterLabel(className, value, labelText, count, withIcon) {
+            var label = document.createElement('label');
+            label.className = 'gf-value checked';
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = className;
+            cb.value = value;
+            cb.checked = true;
+            label.appendChild(cb);
+            var box = document.createElement('span');
+            box.className = 'gf-box';
+            box.innerHTML = '&#10003;';
+            label.appendChild(box);
+            if (withIcon) {
+                var meta = (typeof getCommodityMeta === 'function') ? getCommodityMeta(value) : {icon: (typeof COMMODITY_ICON !== 'undefined' && COMMODITY_ICON[value])||'❓', color: (typeof COMMODITY_COLOR !== 'undefined' && COMMODITY_COLOR[value])||'#95a5a6'};
+                var pin = document.createElement('span');
+                pin.className = 'mini-pin';
+                pin.style.background = meta.color;
+                pin.style.borderColor = meta.color;
+                pin.style.width = '18px';
+                pin.style.height = '18px';
+                pin.style.fontSize = '10px';
+                pin.textContent = meta.icon;
+                label.appendChild(pin);
+            }
+            var txt = document.createElement('span');
+            txt.textContent = labelText + ' (' + count + ')';
+            label.appendChild(txt);
+            return label;
+        }
+        var groupType = document.createElement('div');
+        groupType.className = 'gf-group';
+        var titleType = document.createElement('span');
+        titleType.className = 'gf-title';
+        titleType.textContent = 'Type of Grant';
+        groupType.appendChild(titleType);
         Object.keys(typeCounts).sort().forEach(function(t) {
-            html += '<label class="gf-value checked">' +
-                        '<input type="checkbox" class="gf-type" value="' + t + '" checked>' +
-                        '<span class="gf-box">&#10003;</span>' +
-                        '<span>' + t + ' (' + typeCounts[t] + ')</span>' +
-                    '</label>';
+            groupType.appendChild(createFilterLabel('gf-type', t, t, typeCounts[t], false));
         });
-        html += '</div>';
-        html += '<div class="gf-group"><span class="gf-title">Commodities</span>';
-        html += '<div class="gf-dd" id="commoditiesDropdown">' +
-                    '<button type="button" class="gf-dd-toggle" title="Filter by Commodities">' +
-                        'Commodities' +
-                        '<span class="gf-dd-caret">&#9662;</span>' +
-                    '</button>' +
-                    '<div class="gf-dd-panel">' +
-                        '<div class="gf-dd-actions">' +
-                            '<button type="button" class="gf-dd-btn" id="commSelectAll">Select all</button>' +
-                            '<button type="button" class="gf-dd-btn" id="commClear">Clear</button>' +
-                        '</div>';
+        bar.appendChild(groupType);
+        var groupComm = document.createElement('div');
+        groupComm.className = 'gf-group';
+        groupComm.style.flexDirection = 'column';
+        groupComm.style.alignItems = 'flex-start';
+        var commHeader = document.createElement('div');
+        commHeader.style.display = 'flex';
+        commHeader.style.alignItems = 'center';
+        commHeader.style.gap = '8px';
+        commHeader.style.flexWrap = 'wrap';
+        commHeader.style.width = '100%';
+        var titleComm = document.createElement('span');
+        titleComm.className = 'gf-title';
+        titleComm.textContent = 'Commodities';
+        commHeader.appendChild(titleComm);
+        var btnAll = document.createElement('button');
+        btnAll.type = 'button';
+        btnAll.className = 'gf-dd-btn';
+        btnAll.id = 'commSelectAll';
+        btnAll.textContent = 'Select all';
+        commHeader.appendChild(btnAll);
+        var btnClear = document.createElement('button');
+        btnClear.type = 'button';
+        btnClear.className = 'gf-dd-btn';
+        btnClear.id = 'commClear';
+        btnClear.textContent = 'Clear';
+        commHeader.appendChild(btnClear);
+        groupComm.appendChild(commHeader);
+        var listComm = document.createElement('div');
+        listComm.className = 'gf-commodities-list';
+        listComm.style.display = 'flex';
+        listComm.style.flexWrap = 'wrap';
+        listComm.style.gap = '6px';
+        listComm.style.width = '100%';
+        listComm.style.marginTop = '4px';
         Object.keys(commCounts).sort().forEach(function(c) {
-            html += '<label class="gf-value checked">' +
-                        '<input type="checkbox" class="gf-commodity" value="' + c + '" checked>' +
-                        '<span class="gf-box">&#10003;</span>' +
-                        '<span>' + c + ' (' + commCounts[c] + ')</span>' +
-                    '</label>';
+            listComm.appendChild(createFilterLabel('gf-commodity', c, c, commCounts[c], true));
         });
-        html += '</div></div></div>';
-        html += '<div class="gf-group"><span class="gf-title">Enterprise Class</span>';
+        groupComm.appendChild(listComm);
+        bar.appendChild(groupComm);
+        var groupEnt = document.createElement('div');
+        groupEnt.className = 'gf-group';
+        var titleEnt = document.createElement('span');
+        titleEnt.className = 'gf-title';
+        titleEnt.textContent = 'Enterprise Class';
+        groupEnt.appendChild(titleEnt);
         Object.keys(enterpriseCounts).sort().forEach(function(c) {
-            html += '<label class="gf-value checked">' +
-                        '<input type="checkbox" class="gf-enterprise" value="' + c + '" checked>' +
-                        '<span class="gf-box">&#10003;</span>' +
-                        '<span>' + c + ' (' + enterpriseCounts[c] + ')</span>' +
-                    '</label>';
+            groupEnt.appendChild(createFilterLabel('gf-enterprise', c, c, enterpriseCounts[c], false));
         });
-        html += '</div>';
-        html += '<div class="gf-group"><span class="gf-title">Organization Type</span>';
+        bar.appendChild(groupEnt);
+        var groupOrg = document.createElement('div');
+        groupOrg.className = 'gf-group';
+        var titleOrg = document.createElement('span');
+        titleOrg.className = 'gf-title';
+        titleOrg.textContent = 'Organization Type';
+        groupOrg.appendChild(titleOrg);
         Object.keys(orgCounts).sort().forEach(function(o) {
-            html += '<label class="gf-value checked">' +
-                        '<input type="checkbox" class="gf-orgtype" value="' + o + '" checked>' +
-                        '<span class="gf-box">&#10003;</span>' +
-                        '<span>' + o + ' (' + orgCounts[o] + ')</span>' +
-                    '</label>';
+            groupOrg.appendChild(createFilterLabel('gf-orgtype', o, o, orgCounts[o], false));
         });
-        html += '</div>';
-        bar.insertAdjacentHTML('beforeend', html);
+        bar.appendChild(groupOrg);
         // Shared apply(): reads all four groups and AND-combines them.
         var apply = function() {
             var checkedType = {};
@@ -1668,7 +1793,21 @@
                     clusters_Grantees.removeLayer(l);
                 }
             });
+            // sync floating legend checked state
+            var legendEl = document.getElementById('commodityLegend');
+            if (legendEl) {
+                legendEl.querySelectorAll('.commodity-legend-item').forEach(function(item){
+                    var v = item.getAttribute('data-value');
+                    var esc = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(v) : v.replace(/"/g, '\\"');
+                    var bc = bar.querySelector('.gf-commodity[value="' + esc + '"]');
+                    var checked = bc ? bc.checked : true;
+                    item.classList.toggle('checked', checked);
+                    var lc = item.querySelector('.gf-legend-commodity');
+                    if (lc) lc.checked = checked;
+                });
+            }
         };
+        window._granteeFilterApply = apply;
         bar.querySelectorAll('.gf-type, .gf-commodity, .gf-enterprise, .gf-orgtype').forEach(function(cb) {
             var lbl = cb.closest('label.gf-value');
             lbl.addEventListener('click', function(e) {
@@ -1678,42 +1817,79 @@
                 if (typeof applyEvolutionFilter === 'function') applyEvolutionFilter(); else apply();
             });
         });
-        // Commodities dropdown: clicking the toggle opens/closes the panel;
-        // clicking a checkbox inside never closes it; clicking anywhere else
-        // (map, other panels, the other filter groups) closes it. The 'Select
-        // all' / 'Clear' buttons update every commodity checkbox and re-apply.
-        var ddWrap = document.getElementById('commoditiesDropdown');
-        var ddToggle = ddWrap.querySelector('.gf-dd-toggle');
-        var ddPanel = ddWrap.querySelector('.gf-dd-panel');
-        var ddOpen = false;
-        function setDdOpen(open) {
-            ddOpen = open;
-            ddPanel.classList.toggle('gf-dd-open', open);
-            ddToggle.classList.toggle('gf-dd-active', open);
-        }
-        ddToggle.addEventListener('click', function() {
-            setDdOpen(!ddOpen);
-        });
-        document.addEventListener('click', function(e) {
-            if (ddWrap && ddWrap.contains(e.target)) { return; }
-            setDdOpen(false);
-        });
         function setAllCommodities(checked) {
-            ddPanel.querySelectorAll('.gf-commodity').forEach(function(cb) {
+            bar.querySelectorAll('.gf-commodity').forEach(function(cb) {
                 cb.checked = checked;
                 cb.closest('label.gf-value').classList.toggle('checked', checked);
             });
             if (typeof applyEvolutionFilter === 'function') applyEvolutionFilter(); else apply();
         }
-        ddPanel.querySelector('#commSelectAll').addEventListener('click', function(e) {
+        document.getElementById('commSelectAll').addEventListener('click', function(e) {
             e.preventDefault();
             setAllCommodities(true);
         });
-        ddPanel.querySelector('#commClear').addEventListener('click', function(e) {
+        document.getElementById('commClear').addEventListener('click', function(e) {
             e.preventDefault();
             setAllCommodities(false);
         });
     }
+    function buildCommodityLegend() {
+        var legend = document.getElementById('commodityLegend');
+        var bar = document.getElementById('granteeFilterBar');
+        if (!legend || typeof COMMODITY_ICON === 'undefined') return;
+        var counts = {};
+        layer_Grantees.eachLayer(function(l){
+            (l.feature.properties.subcategories||[]).forEach(function(c){ if(c) counts[c]=(counts[c]||0)+1; });
+        });
+        var keys = Object.keys(counts).sort(function(a,b){
+            if(a==='Unclassified') return 1; if(b==='Unclassified') return -1;
+            return counts[b]-counts[a];
+        });
+        function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+        var html = '<div class="legend-header" onclick="toggleLegendPanel()"><span>Legend</span><span id="legendToggleArrow">▾</span></div><div class="legend-content" id="legendContent"><div class="legend-section" id="legendCommoditiesSection"><div class="legend-section-header" onclick="toggleCommoditiesSection()"><span>Commodities</span><span id="commoditiesToggleArrow">▾</span></div><div class="legend-section-content" id="legendCommoditiesContent">';
+        keys.forEach(function(k){
+            var meta = (typeof getCommodityMeta==='function') ? getCommodityMeta(k) : {icon: COMMODITY_ICON[k]||'❓', color: COMMODITY_COLOR[k]||'#95a5a6', label:k};
+            var esc = escHtml(k);
+            html += '<label class="commodity-legend-item checked" data-value="'+esc+'" title="Filter by '+esc+'"><input type="checkbox" class="gf-legend-commodity" value="'+esc+'" checked style="display:none"><span class="mini-pin" style="background:'+meta.color+';border-color:'+meta.color+'">'+meta.icon+'</span><span>'+esc+' ('+counts[k]+')</span><span class="gf-box" style="margin-left:4px;width:12px;height:12px;font-size:10px;display:inline-flex;align-items:center;justify-content:center;border:1px solid currentColor;border-radius:2px">✓</span></label>';
+        });
+        html += '</div></div></div>';
+        legend.innerHTML = html;
+        // Legend → filter bar sync: clicking legend toggles commodities filter (uses same icons/colors, direct apply)
+        legend.querySelectorAll('.commodity-legend-item').forEach(function(item){
+            item.addEventListener('click', function(e){
+                e.preventDefault();
+                var val = item.getAttribute('data-value');
+                var esc = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(val) : val.replace(/"/g, '\\"');
+                var legendCb = item.querySelector('.gf-legend-commodity');
+                var newChecked = !(legendCb ? legendCb.checked : true);
+                if (legendCb) legendCb.checked = newChecked;
+                item.classList.toggle('checked', newChecked);
+                var barCb = bar ? bar.querySelector('.gf-commodity[value="' + esc + '"]') : null;
+                if (barCb) {
+                    barCb.checked = newChecked;
+                    var lbl = barCb.closest('label.gf-value');
+                    if (lbl) lbl.classList.toggle('checked', newChecked);
+                }
+                if (typeof window._evoApplyFilter === 'function') window._evoApplyFilter();
+                else if (typeof window._granteeFilterApply === 'function') window._granteeFilterApply();
+            });
+        });
+        // legend ↔ filter sync now handled directly in apply() and legend click handler
+    }
+    window.toggleLegendPanel = function() {
+        var legend = document.getElementById('commodityLegend');
+        if (!legend) return;
+        legend.classList.toggle('collapsed');
+        var arrow = document.getElementById('legendToggleArrow');
+        if (arrow) arrow.textContent = legend.classList.contains('collapsed') ? '▸' : '▾';
+    };
+    window.toggleCommoditiesSection = function() {
+        var sec = document.getElementById('legendCommoditiesSection');
+        if (!sec) return;
+        sec.classList.toggle('collapsed');
+        var arrow = document.getElementById('commoditiesToggleArrow');
+        if (arrow) arrow.textContent = sec.classList.contains('collapsed') ? '▸' : '▾';
+    };
     // Boundary overlays loaded from the committed .geojson files. The geometry is
     // fetched (not embedded) so the large data files are not duplicated into JS.
     // District and Province are toggleable overlays (default off); Country is always visible.

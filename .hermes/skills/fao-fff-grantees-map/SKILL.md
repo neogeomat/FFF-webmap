@@ -7,6 +7,10 @@ description: Edit the FAO FFF grantees Leaflet web map.
 
 Trigger skill for editing the FAO FFF Nepal grantees Leaflet map at `/home/ubentu/ssd/baato/FAO/FFF`.
 
+**Standing rules:** prove every UI change in a browser over HTTP before reporting done; leave edits
+UNCOMMITTED and report the touched paths — commit only when the user explicitly says so. Other agents
+edit this repo concurrently, so a dirty working tree can be swept into someone else's commit.
+
 **Base conventions, layout, data pipeline, and pitfalls live in `AGENTS.md` (repo root) —
 read that first.** This skill additionally documents the boundary-overlay behavior and the
 browser verification recipe (see `references/leaflet-browser-verify.md`), which AGENTS.md
@@ -15,7 +19,7 @@ does not yet cover — keep AGENTS.md in sync after map changes.
 ## When to use
 - Editing grantee data, markers, popups, the info panel, the filter, or basemaps in this repo.
 - Editing the Grantees data layer (`data/Grantees.geojson`) or its async load wiring in `index.html`.
-- Editing the District/Province/Chure/Nepal boundary overlays or the `#granteeFilterBar` toggle pills.
+- Editing the District/Local Level/Province/Chure/Nepal boundary overlays or the `#granteeFilterBar` toggle pills.
 
 ## Grantee data layer (async GeoJSON via Leaflet-ajax)
 The grantee points are NO LONGER an embedded JS blob. They load from
@@ -54,19 +58,32 @@ The map now needs HTTP for EVERYTHING: boundaries use `fetch`, grantees use the 
 **`file://` shows no grantees AND no boundaries** — always serve over HTTP to verify.
 
 ## Boundary overlays (added after AGENTS.md — keep AGENTS.md in sync)
-Four committed GeoJSON boundary layers wired in `Webmap/index.html` (IIFE near the end):
+Five committed GeoJSON boundary layers wired in `Webmap/index.html` (IIFE near the end):
 District (77 feats — styled per-feature by `project_area`: `'y'` (13, project area) → highlighted green
 #27ae60 fill @ 0.5 + dark-green stroke; `'n'` (64) → dimmed blue #3388ff fill @ 0.04, stroke-opacity 0.35),
-Province (7, orange #e67e22), Chure (1, green #27ae60, the Terai/Chure belt),
+Province (7, orange #e67e22), Local Level (33 feats, `data/projectLocalLevels.geojson`, bright yellow #ffd400 stroke 3, dashArray
+'7 4', fill @ 0.06 — yellow+dashed because thin purple vanished over the satellite basemap; always
+labelled **Local Level** in the UI, never `projectLocalLevels`),
+Chure (1, green #27ae60, the Terai/Chure belt),
 Nepal (1, white #ffffff, always added to the map on load).
 - Loaded via `fetch`, NOT embedded globals — **they only appear when served over HTTP;
   opening `index.html` via `file://` silently shows no boundaries.** The Grantees layer
   still works on file:// (it uses the embedded `var json_Grantees`).
-- No zoom auto-toggle anymore — District/Province/Chure are toggled manually via checkboxes in
-  the top `#granteeFilterBar` pill bar (District/Province default OFF, Chure default ON). Nepal and
+- Startup base layer is `No background` (`empty_baseLayer = L.gridLayer({})`) so the light-green `#map` background (`#e8f5e9`) shows; Satellite (Esri) and OpenStreetMap stay selectable in the switcher.
+- No zoom auto-toggle anymore — District/Local Level/Province/Chure are toggled manually via checkboxes in
+  the top `#granteeFilterBar` pill bar (District/Province/Chure default ON, Local Level default OFF). Nepal and
   the Organizations (grantee marker) cluster layer are ON by default.
-- Panes: District z410, Province z420, Chure z425, Nepal z430 — all below `pane_Grantees`
+- Panes: District z410, LocalLevel z415, Province z420, Chure z425, Nepal z430 — all below `pane_Grantees`
   (z650) so points stay on top.
+- **Adding or restyling a boundary layer = ONE object in the `specs` array** (the IIFE near the end of
+  `index.html`). That array is the single source: `createPane`, the `fetch`, `layerControl.addOverlay(layer,
+  spec.label)` (THE LAYER SWITCHER), the per-feature `style`/`styleFn`, and the click-overview wording. Three
+  touch points: (1) add the pane to the `createPane` list + a `zIndex` line; (2) the `specs` entry —
+  `varName` `json_<Name>`, `layerVar` `layer_<Name>`, `url`, `label` (the UI name), `pane`, `color`/`weight`/
+  `fillOpacity`; (3) after `Promise.all`, a `var <name> = window.json_<Name>.features.length` plus a
+  `gf-boundary` pill with `data-layer="layer_<Name>"`. Default-OFF = do NOT `addTo(map)` in the fetch and do
+  NOT mark the pill `checked`. Label it with a human name, never the filename (user rule:
+  `projectLocalLevels.geojson` → "Local Level").
 
 ## Collapsible panels — moving a panel to a new screen edge
 Three panels: `#leftPanel` (Grantees list), `#rightPanel` (Details / `#aggregate`),
@@ -142,8 +159,8 @@ clicks on `.grantee-cluster` until `.org-pin-wrap` appears (recipe in
    Confirm with `js("bio_table_generator.toString().indexOf('NEW_STRING') >= 0")` before
    trusting any details-panel check.
 3. Confirm it rendered (see `references/leaflet-browser-verify.md`): layout fill ~full;
-   overlay path counts per pane (District 77 / Province 7 / Chure 1 / Nepal 1 — toggle the
-   `#granteeFilterBar` checkboxes first, since District/Province start off; Chure and Nepal start on);
+   overlay path counts per pane (District 77 / Local Level 33 / Province 7 / Chure 1 / Nepal 1 — toggle the
+   `#granteeFilterBar` checkboxes first, since Local Level starts off; District/Province/Chure and Nepal start on);
    pane class is `leaflet-pane_<Name>-pane`, not `.pane_<Name>`. The user rejects "done"
    without proof it renders. Confirm before reporting success.
 
@@ -195,6 +212,62 @@ feature at render time (in `index.html`, inside `layer_Grantees.on('data:loaded'
   summaries) becomes unusable.
 - See `references/panel-layout.md` for the verified panel-remap + hover-popup recipe and the
   `getBoundingClientRect` probe used to confirm geometry after a move.
+
+### Marker + popup styling (user rules)
+- **The popup must look like the legend, not like bootstrap.** `.info-hover-popup` shares the
+  `.commodity-legend` tokens — `font: 11px/13px Arial…`, colour `#1a3c5e`, `border-radius: 8px`,
+  `box-shadow: 0 4px 18px rgba(0,0,0,0.32)`, `padding: 6px 10px` — and its labels read as legend headers
+  (`bold 12px #0070b6` over a 1px `#ced4da` underline; bootstrap's `.text-muted` is `!important`, so it needs
+  an `!important` override for the "Cluster — N organizations" line). Popup tables are SINGLE-COLUMN:
+  `table tr/th/td { display: block }` so a long grant title gets the whole 300px box instead of a narrow value
+  column. Align any new floating box to the legend by MEASURING both with `getComputedStyle`
+  (font/colour/radius/shadow/padding), never by eye — details, the stale-selector trap and the
+  bootstrap-gutter fix are in `references/hover-popup-positioning.md`.
+- **Multi-commodity pins:** 1 commodity → one 32px `.commodity-pin` circle; 2 → ONE circle split half/half
+  (90deg `linear-gradient` of the two colours + two emoji spans clipped with
+  `clip-path: inset(0 50% 0 0)` / `inset(0 0 0 50%)`, `iconSize [32,32]`, `border-color: transparent` so the
+  gradient fills the ring); 3 → the mini-pin stack. `isStack = capped.length > 2` in `style_Grantees_div_icon`,
+  icons/colours in `COMMODITY_ICON`/`COMMODITY_COLOR` — see `references/marker-tooltips-labels.md`.
+
+### Panel typography (user rules)
+Panels take their FONT FAMILY and text colour from the legend, but NOT its size — 11px is rejected for
+panel content. Current target for `#leftPanel`:
+- family/colour = legend tokens (`Arial, Helvetica, sans-serif`, `#1a3c5e`), size **15px/18px** (the
+  user's explicit number), `.panel-header` 16px/19px bold `#0070b6`, `table td/th` padding `3px 5px`.
+- Scope it with `#leftPanel, #leftPanel * { font-family: … }` plus ID-scoped size rules that list the
+  bootstrap classes hard-coding their own size (`.form-control`, `.btn`, `.dataTables_wrapper`,
+  `.dataTables_info`, `.dataTables_paginate`, `table th/td`, `label`, `input`, `select`, `button`) —
+  bootstrap sets 14-16px on those, so setting the size on `#leftPanel` alone does not reach them.
+  ID specificity already beats bootstrap's classes: check before adding `!important`, and it is not
+  needed (this app uses none for panel fonts).
+- When the user says "make X follow the same font as Y", copy family + colour + line-height from Y and
+  EXPECT a separate size instruction — they will give the number ("make font size 15px"). Never silently
+  adopt the reference's size, and never shrink text to stop wrapping: at 15px in the 280px panel long
+  org names wrap to 2-5 lines (~42px rows, ~5-7 rows before scrolling), which the user accepted. The
+  options to offer instead are a wider panel or one-line ellipsis truncation with a `title` tooltip.
+- Verify with `getComputedStyle` on the panel, `.panel-header`, `td` and the search `input`, plus
+  `scrollWidth - clientWidth` on `.panel-content` for horizontal overflow (must be 0), not by eye.
+- **A deliberately white-on-colour element inside a restyled panel WILL go dark.** An ID-scoped `color:`
+  on `#leftPanel button` / `.btn` outranks the tab's own rule, so the "‹ Grantees" collapse tab lost its
+  white text on the blue background and had to be re-asserted at the END of the block:
+  `#leftPanel .panel-toggle-btn, #leftPanel .panel-toggle-btn * { color: #ffffff; }`. After ANY panel
+  typography/colour change, re-check every element that should stay light-on-dark by diffing computed
+  colours against the previous build (recipe in `references/leaflet-browser-verify.md`).
+
+### Left panel list: fill the column, scroll — never paginate (user rules)
+- The panel must FILL its column: `#leftPanel { top:80px; bottom:100px; max-height: calc(100vh - 180px); }`.
+  Left at `bottom:auto`/content height it stops mid-screen and the user reports "there is empty space at
+  the bottom of the left panel"; left under the shared `80vh` cap it fights the vh-derived table height
+  and the pagination ends up a few px outside the panel.
+- `.panel-content { flex: 1 1 auto; min-height: 0 }` so the list fills the panel, and size the table body
+  with the same arithmetic: `"scrollY": "calc(100vh - 375px)"` (≈30px of slack under the panel's
+  `calc(100vh - 180px)`).
+- **Overflow only, no page numbers:** `dom: 'f<t>'` (the trailing `p` is what renders the pagination
+  footer) with `"paging": false`, dropping `pageLength`/`pagingType`. All orgs then sit in one scrollable
+  list under the search box; the row-click handler that fills `#aggregate` is unaffected.
+- Verify at several window sizes (1400×900, 1280×750, 1600×1200): panel bottom = viewport − 100,
+  `.panel-content` `scrollHeight - clientHeight` = 0 (exactly ONE scrollbar), `.dataTables_paginate`
+  count 0, row count = org count, and the search box still filters the list.
 
 ## Aggregate panel charts
 `#rightPanel #tab-aggregate` creates the Chart.js placeholders (`window.chartPie`, `window.chartBar`) in one IIFE. `#chartInvestment` is live: it fetches `data/investment_by_enterprise.json` (generated by `summarise_investment.py` from the per-org finance columns deduped by `S_N`) and renders a LoA/DBG stacked bar by `enterprise_classification`. It is a STATIC snapshot: like the

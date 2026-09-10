@@ -67,6 +67,7 @@
             top: 0;
             left: 0;
             z-index: 1;
+            background: #e8f5e9;   /* light green canvas */
         }
         
         /* Page title overlay */
@@ -206,6 +207,8 @@
             left: 10px;
             width: 280px;
             bottom: 100px;
+            height: auto;
+            max-height: calc(100vh - 180px);
         }
         
         /* Details panel — now at the BOTTOM (#bottomPanel holds #aggregate) */
@@ -243,17 +246,27 @@
             overflow: auto;
             background: rgba(255, 255, 255, 0.97);
             border: 1px solid #0070b6;
-            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
-            border-radius: 6px;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.32);
+            border-radius: 8px;
             pointer-events: auto;
-            font: 13px/15px Arial, Helvetica, sans-serif;
+            font: 11px/13px Arial, Helvetica, sans-serif;
             color: #1a3c5e;
+            padding: 6px 10px;
         }
-        .info-hover-popup table { font: 12px/14px Arial, Helvetica, sans-serif; margin: 0; }
+        .info-hover-popup table { font: 11px/13px Arial, Helvetica, sans-serif; color: #1a3c5e; margin: 0; }
         .info-hover-popup .org-details { margin: 0 0 6px 0; }
-        .info-hover-popup .org-details > summary { cursor: pointer; font-weight: bold; color: #0070b6; }
-        .info-hover-popup th { white-space: nowrap; }
-        .info-hover-popup .org-card { background: transparent; box-shadow: none; }
+        .info-hover-popup .org-details > summary { cursor: pointer; font: bold 12px/13px Arial, Helvetica, sans-serif; color: #0070b6; padding: 4px 0; border-bottom: 1px solid #ced4da; margin-bottom: 6px; }
+        .info-hover-popup p.text-muted { color: #0070b6 !important; font-weight: 700 !important; font-size: 12px !important; padding: 4px 0; border-bottom: 1px solid #ced4da; margin: 0 0 6px; }
+        /* Popup tables are single-column: label on its own line, value gets the full width */
+        .info-hover-popup table tr { display: block; }
+        .info-hover-popup table th, .info-hover-popup table td { display: block; width: auto; text-align: left; padding: 0 6px; }
+        .info-hover-popup table th { color: #0070b6; font-weight: 600; padding-top: 3px; border-top: 1px solid #e9eff5; }
+        .info-hover-popup table tr:first-child th { border-top: 0; }
+        .info-hover-popup table td { border-top: 0; padding-bottom: 3px; }
+        /* mirrored #aggregate markup brings bootstrap grid gutters that overflow the popup box */
+        .info-hover-popup .row { margin-left: 0; margin-right: 0; }
+        .info-hover-popup [class^="col-"] { padding-left: 0; padding-right: 0; }
+        .info-hover-popup .org-card { background: transparent; box-shadow: none; border-radius: 8px; }
         .info-hover-popup .panel-header,
         .info-hover-popup .gf-label { display: none; }
         .org-pin-wrap {
@@ -274,17 +287,17 @@
         }
         /* Permanent name tooltip on the map */
         .org-tip-name {
-            background: rgba(255, 255, 255, 0.92);
+            background: rgba(255, 255, 255, 0.97);
             border: 1px solid #0070b6;
-            border-radius: 3px;
+            border-radius: 8px;
             color: #1a3c5e;
-            font: 11px/14px Arial, Helvetica, sans-serif;
-            padding: 0 4px;
-            white-space: normal;        /* allow wrapping */
-            width: 160px;               /* fixed box -> ~3-4 words per line */
+            font: 11px/13px Arial, Helvetica, sans-serif;
+            padding: 2px 6px;
+            white-space: normal;
+            width: 160px;
             max-width: 160px;
             text-align: center;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.32);
         }
         .leaflet-tooltip.org-tip-name::before { display: none; }
 
@@ -301,6 +314,11 @@
             cursor: pointer;
         }
         .commodity-emoji { font-size: 16px; line-height: 1; }
+        /* Two-commodity pin: one circle split in half, each icon clipped to its half */
+        .commodity-pin.split { position: relative; overflow: hidden; }
+        .commodity-pin.split .commodity-emoji { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+        .commodity-pin.split .half-left { clip-path: inset(0 50% 0 0); }
+        .commodity-pin.split .half-right { clip-path: inset(0 0 0 50%); }
         .commodity-stack { display: flex; gap: 2px; align-items: center; }
         .mini-pin {
             width: 22px;
@@ -770,6 +788,17 @@
             color: #5a6d80;
             font-style: italic;
         }
+
+        /* #leftPanel — match .commodity-legend typography (reference: Arial 11px/13px #1a3c5e, header 12px #0070b6) */
+        #leftPanel, #leftPanel * { font-family: Arial, Helvetica, sans-serif; }
+        #leftPanel { font-size: 15px; line-height: 18px; color: #1a3c5e; }
+        #leftPanel .panel-header { font-size: 16px; line-height: 19px; }
+        #leftPanel table, #leftPanel table th, #leftPanel table td, #leftPanel label, #leftPanel input, #leftPanel select, #leftPanel button, #leftPanel .btn, #leftPanel .dataTables_wrapper, #leftPanel .dataTables_info, #leftPanel .dataTables_paginate { font-size: 15px; line-height: 18px; color: #1a3c5e; }
+        #leftPanel table th, #leftPanel table td { padding: 3px 5px; }
+        #leftPanel table th { font-weight: 600; }
+        #leftPanel .panel-content { flex: 1 1 auto; min-height: 0; }
+        /* the collapse tab is white-on-blue — keep it white, the panel font rule would darken it */
+        #leftPanel .panel-toggle-btn, #leftPanel .panel-toggle-btn * { color: #ffffff; }
     </style>
     <title>FAO Grantees Map</title>
 </head>
@@ -976,7 +1005,8 @@
             var wrap = document.getElementById('filterBarWrap');
             if (!bar || bar.classList.contains('collapsed')) return;
             if (wrap && wrap.contains(e.target)) return;
-            // Don't auto-close on map interactions - only explicit toggle for now
+            // click outside the filter area -> collapse (clicks inside the bar, e.g. a pill, keep it open)
+            toggleFilters();
         });
     })();
 
@@ -1431,7 +1461,9 @@
 
     function setBounds() {
         if (bounds_group.getLayers().length) {
-            map.fitBounds(bounds_group.getBounds());
+            // keep the fitted content clear of the floating legend + collapsed right
+            // panel on the east edge (legend is 190px wide + gaps ≈ 200px)
+            map.fitBounds(bounds_group.getBounds(), { paddingBottomRight: [200, 0] });
         }
     }
     var layer_OSMStandard_0 = L.tileLayer('http://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -1446,9 +1478,10 @@
         maxZoom: 19,
         attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
     });
-    layer_EsriImagery.addTo(map);   // default basemap
+    // Satellite imagery stays available in the layer switcher but is NOT added on startup
 
-    var empty_baseLayer = L.tileLayer('', {});
+    var empty_baseLayer = L.gridLayer({});   // draws nothing and requests nothing (L.tileLayer('') still fired tile requests)
+    empty_baseLayer.addTo(map);   // start on the plain canvas (light green #map background)
 
     function pop_Grantees(feature, layer) {
         layer.on({
@@ -1891,10 +1924,11 @@
     // fetched (not embedded) so the large data files are not duplicated into JS.
     // District and Province are toggleable overlays (default off); Country is always visible.
     (function() {
-        ['District', 'Province', 'Chure', 'Nepal'].forEach(function(name) {
+        ['District', 'LocalLevel', 'Province', 'Chure', 'Nepal'].forEach(function(name) {
             map.createPane('pane_' + name);
         });
         map.getPane('pane_District').style.zIndex = 410;
+        map.getPane('pane_LocalLevel').style.zIndex = 415;
         map.getPane('pane_Province').style.zIndex = 420;
         map.getPane('pane_Chure').style.zIndex = 425;
         map.getPane('pane_Nepal').style.zIndex = 430;
@@ -1917,6 +1951,17 @@
                 }
                 return { fillColor: '#3388ff', fillOpacity: 0.04, color: '#3388ff', weight: 0.8, opacity: 0.35 };
             }
+        }, {
+            varName: 'json_LocalLevel',
+            layerVar: 'layer_LocalLevel',
+            url: 'data/projectLocalLevels.geojson',
+            label: 'Local Level boundaries',
+            pane: 'pane_LocalLevel',
+            color: '#ffd400',
+            weight: 3,
+            dashArray: '7 4',
+            fillOpacity: 0.06,
+            fill: true
         }, {
             varName: 'json_Province',
             layerVar: 'layer_Province',
@@ -1967,7 +2012,8 @@
                             var base = {
                                 fillOpacity: (feature && feature.properties && feature.properties.project_area) ? 0.12 : (spec.fillOpacity || 0),
                                 color: spec.color,
-                                weight: spec.weight
+                                weight: spec.weight,
+                                dashArray: spec.dashArray
                             };
                             if (spec.styleFn) { return spec.styleFn(feature, base); }
                             return base;
@@ -1983,6 +2029,8 @@
                                         if (pa === 'y') { y++; } else { nn++; }
                                     });
                                     msg = n + ' districts. ' + y + ' lie inside a Forest Fruit & Flora project area (highlighted green); ' + nn + ' are dimmed.';
+                                } else if (spec.layerVar === 'layer_LocalLevel') {
+                                    msg = n + ' local levels (Gaunpalika / Municipality) inside the project area.';
                                 } else if (spec.layerVar === 'layer_Province') {
                                     msg = n + ' provinces, drawn out. The per-province grantee breakdown hasn’t been loaded, but the outlines are here.';
                                 } else if (spec.layerVar === 'layer_Chure') {
@@ -1996,9 +2044,10 @@
                     });
                     window[spec.layerVar] = layer;
                     layerControl.addOverlay(layer, spec.label);
-                    if (spec.layerVar === 'layer_Nepal' || spec.layerVar === 'layer_Chure') {
-                        layer.addTo(map);
-                    }
+                    if (spec.layerVar === 'layer_Nepal' || spec.layerVar === 'layer_Chure' ||
+                            spec.layerVar === 'layer_District' || spec.layerVar === 'layer_Province') {
+                            layer.addTo(map);
+                        }
                 });
         })).then(function() {
             // Build the boundary toggle pills in the top filter bar now that the
@@ -2007,14 +2056,17 @@
             var bar = document.getElementById('granteeFilterBar');
             if (bar) {
                 var district = window.json_District ? window.json_District.features.length : 0;
+                var localLevel = window.json_LocalLevel ? window.json_LocalLevel.features.length : 0;
                 var province = window.json_Province ? window.json_Province.features.length : 0;
                 var chure = window.json_Chure ? window.json_Chure.features.length : 0;
                 bar.insertAdjacentHTML('beforeend',
                     '<div class="gf-group gf-group-sep">' +
                         '<span class="gf-title">Boundaries</span>' +
-                        '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_District">' +
+                        '<label class="gf-value checked"><input type="checkbox" class="gf-boundary" data-layer="layer_District" checked>' +
                         '<span class="gf-box">&#10003;</span><span>District boundaries (' + district + ')</span></label>' +
-                        '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_Province">' +
+                        '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_LocalLevel">' +
+                        '<span class="gf-box">&#10003;</span><span>Local Level boundaries (' + localLevel + ')</span></label>' +
+                        '<label class="gf-value checked"><input type="checkbox" class="gf-boundary" data-layer="layer_Province" checked>' +
                         '<span class="gf-box">&#10003;</span><span>Province boundaries (' + province + ')</span></label>' +
                         '<label class="gf-value checked"><input type="checkbox" class="gf-boundary" data-layer="layer_Chure" checked>' +
                         '<span class="gf-box">&#10003;</span><span>Chure boundaries (' + chure + ')</span></label>' +
@@ -2136,11 +2188,10 @@
                 { title: "S.N." },
                 { title: "Organization" }
             ],
-            dom: 'f<t>p',
-            "scrollY": "400px",
+            dom: 'f<t>',
+            "scrollY": "calc(100vh - 375px)",
             "scrollCollapse": true,
-            "paging": true,
-            "pagingType": "numbers"
+            "paging": false
         });
         $('#dataTable tbody').on('click', 'tr', function() {
             var data = table.row(this).data();

@@ -151,7 +151,13 @@ function commodityPinHtml(subcategories) {
         var m = metas[0];
         return '<div class="commodity-pin" style="background:' + m.color + ';border-color:' + m.color + '"><span class="commodity-emoji">' + m.icon + '</span></div>';
     }
-    // stacked mini-pins (2-3)
+    // two commodities on one pin: half/half circle, each icon clipped to its own half
+    if (metas.length === 2) {
+        return '<div class="commodity-pin split" style="background:linear-gradient(90deg,' + metas[0].color + ' 0 50%,' + metas[1].color + ' 50% 100%);border-color:transparent" title="' + metas[0].label + ' + ' + metas[1].label + '">' +
+            '<span class="commodity-emoji half-left">' + metas[0].icon + '</span>' +
+            '<span class="commodity-emoji half-right">' + metas[1].icon + '</span></div>';
+    }
+    // stacked mini-pins (3)
     var html = '<div class="commodity-stack">';
     metas.forEach(function(m){
         html += '<span class="mini-pin" style="background:' + m.color + ';border-color:' + m.color + '" title="' + m.label + '">' + m.icon + '</span>';
@@ -217,7 +223,7 @@ function style_Grantees_div_icon(feature) {
         if (!subs.length) subs = ['Unclassified'];
     }
     var capped = subs.slice(0,3);
-    var isStack = capped.length > 1;
+    var isStack = capped.length > 2;
     var size = isStack ? [ capped.length * 24 + 4, 28 ] : [32, 32];
     var anchor = isStack ? [ size[0]/2, 14 ] : [16, 16];
     subs = capped;

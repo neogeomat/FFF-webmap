@@ -1,0 +1,50 @@
+{
+  "generated_by": "summarise_investment.py",
+  "unit": "USD",
+  "note": "Per-org finance columns deduplicated by S_N; first grant row wins for enterprise_classification.",
+  "groups": [
+    {
+      "enterprise_classification": "Integrated",
+      "orgs": 19,
+      "contracts": 32.0,
+      "loa_usd": 916885.5,
+      "dbg_usd": 268189.4,
+      "total_usd": 1185074.9,
+      "total_npr": 151860388.0
+    },
+    {
+      "enterprise_classification": "Forest-based",
+      "orgs": 28,
+      "contracts": 27.0,
+      "loa_usd": 336226.15,
+      "dbg_usd": 283020.96,
+      "total_usd": 619247.11,
+      "total_npr": 83206696.0
+    },
+    {
+      "enterprise_classification": "Farm-based",
+      "orgs": 18,
+      "contracts": 20.0,
+      "loa_usd": 195088.59,
+      "dbg_usd": 288845.89,
+      "total_usd": 483934.48,
+      "total_npr": 64389632.0
+    },
+    {
+      "enterprise_classification": "Unclassified",
+      "orgs": 6,
+      "contracts": 0.0,
+      "loa_usd": 0.0,
+      "dbg_usd": 0.0,
+      "total_usd": 0.0,
+      "total_npr": 0.0
+    }
+  ],
+  "total": {
+    "contracts": 79.0,
+    "loa_usd": 1448200.25,
+    "dbg_usd": 840056.25,
+    "total_usd": 2288256.5,
+    "total_npr": 299456716.0
+  }
+}

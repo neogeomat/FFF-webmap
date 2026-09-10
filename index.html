@@ -245,11 +245,13 @@
             border: 1px solid #0070b6;
             box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
             border-radius: 6px;
-            pointer-events: none;
+            pointer-events: auto;
             font: 13px/15px Arial, Helvetica, sans-serif;
             color: #1a3c5e;
         }
         .info-hover-popup table { font: 12px/14px Arial, Helvetica, sans-serif; margin: 0; }
+        .info-hover-popup .org-details { margin: 0 0 6px 0; }
+        .info-hover-popup .org-details > summary { cursor: pointer; font-weight: bold; color: #0070b6; }
         .info-hover-popup th { white-space: nowrap; }
         .info-hover-popup .org-card { background: transparent; box-shadow: none; }
         .info-hover-popup .panel-header,
@@ -1356,6 +1358,10 @@
     hoverPopup.className = 'info-hover-popup';
     hoverPopup.style.display = 'none';
     document.body.appendChild(hoverPopup);
+    var popupHovered = false;
+    var popupHideTimer = null;
+    hoverPopup.addEventListener('mouseenter', function() { popupHovered = true; clearTimeout(popupHideTimer); });
+    hoverPopup.addEventListener('mouseleave', function() { popupHovered = false; hideHoverPopup(); });
 
     function showHoverPopup(html, latlng) {
         hoverPopup.innerHTML = html;
@@ -1382,8 +1388,15 @@
         hoverPopup.style.top = top + 'px';
     }
     function hideHoverPopup() {
-        hoverPopup.style.display = 'none';
-        hoverPopup.innerHTML = '';
+        if (popupHovered) return;   // keep open while the pointer is inside the popup
+        // Grace period: mouseout on the marker/cluster fires before mouseenter on the
+        // popup, so hide on a delay and let the pointer travel into the box.
+        clearTimeout(popupHideTimer);
+        popupHideTimer = setTimeout(function() {
+            if (popupHovered) return;
+            hoverPopup.style.display = 'none';
+            hoverPopup.innerHTML = '';
+        }, 250);
     }
 
     function highlightFeature(e) {
@@ -1442,8 +1455,10 @@
             mouseout: function(e) {
                 // info.update();
                 hideHoverPopup();
-                for (i in e.target._eventParents) {
-                    e.target._eventParents[i].resetStyle(e.target);
+                for (var i in e.target._eventParents) {
+                    var p = e.target._eventParents[i];
+                    // markers are not vector layers: only groups that style layers have resetStyle
+                    if (p && typeof p.resetStyle === 'function') { p.resetStyle(e.target); }
                 }
             },
             mouseover: function(e) {
@@ -1578,44 +1593,23 @@
         // Suppress the default hover coverage polygon so only the bottom-panel list shows.
         clusters_Grantees._showCoverage = function() {};
         clusters_Grantees._hideCoverage = function() {};
-        // Build the bottom-panel ("#aggregate") list of organizations in a cluster, using the
-        // SAME table format as bio_table_generator so it mirrors individual-node display.
-        function clusterOrgTableHTML(cluster) {
+        // Cluster hover + bottom panel: one bio_table_generator card per member org,
+        // i.e. the same card style as individual-marker hover.
+        function clusterOrgCardsHTML(cluster) {
             var kids = cluster.getAllChildMarkers();
             var n = kids.length;
             var rows = kids.map(function(m) {
-                var t = m.feature ? m.feature.properties : {};
-                var sn = (t && t.S_N != null) ? t.S_N : '';
-                var name = (t && t.Name_of_Organization) ? t.Name_of_Organization : '(unknown)';
-                var loc = (t && t.Location) ? t.Location : '';
-                var grant = (t && t.Type_of_Grant) ? t.Type_of_Grant : '';
-                var comm = (t && t.Commodities) ? t.Commodities : '';
-                var cls = (t && t.enterprise_classifications && t.enterprise_classifications.length) ? t.enterprise_classifications.join(', ') : '';
-                var meta = [];
-                if (t && t.people_benefited != null) { meta.push(t.people_benefited + ' people'); }
-                if (t && t.area_direct_ha != null) { meta.push(t.area_direct_ha + ' ha direct'); }
-                if (t && t.area_contributed_ha != null) { meta.push(t.area_contributed_ha + ' ha contributed'); }
-                return '<div class="org-card">' +
-                    '<table class="table">' +
-                    '<tr><td colspan="2"><strong>S.N.</strong> ' + sn + '</td></tr>' +
-                    '<tr><td colspan="2"><strong>Organization</strong><br />' + name + '</td></tr>' +
-                    '<tr><th scope="row">Location</th><td>' + loc + '</td></tr>' +
-                    '<tr><th scope="row">Type of Grant</th><td>' + grant + '</td></tr>' +
-                    '<tr><th scope="row">Commodities / Enterprises</th><td>' + comm + '</td></tr>' +
-                    (cls ? '<tr><th scope="row">Enterprise Classification</th><td>' + cls + '</td></tr>' : '') +
-                    (meta.length ? '<tr><th scope="row">Impact</th><td>' + meta.join(' \u00b7 ') + '</td></tr>' : '') +
-                    '</table>' +
-                    '</div>';
+                return bio_details_generator(m.feature);
             }).join('');
             return '<div class="row"><div class="col-12">' +
-                '<p class="text-muted mb-1">Cluster — ' + n + ' organization' + (n === 1 ? '' : 's') + '</p>' +
+                '<p class="text-muted mb-1">Cluster — ' + escapeHtml(n) + ' organization' + (n === 1 ? '' : 's') + '</p>' +
                 rows +
                 '</div></div>';
         }
         // A real mouse hover over a cluster icon emits 'clustermouseover'/'clustermouseout'.
-        // Show the member organizations in the same table format as individual nodes.
+        // Cluster hover shows the member org cards (same style as individual-marker hover).
         clusters_Grantees.on('clustermouseover', function(e) {
-            var html = clusterOrgTableHTML(e.layer);
+            var html = clusterOrgCardsHTML(e.layer);
             var b = L.DomUtil.get('aggregate');
             b.innerHTML = html;
             showHoverPopup(html, e.layer.getBounds().getCenter());

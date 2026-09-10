@@ -1,16 +1,6 @@
 var escapeHtml = function(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); };
-var bio_table_generator = function(feature) {
-    if (feature) {
-        var p = feature.properties || {};
-        bio =
-            '<div class="row">' +
-              '<div class="col-12">' +
-                '<div class="org-card">' +
-                '<table class="table">' +
-                  '<tr><td colspan="2"><strong>S.N.</strong> ' +
-                    escapeHtml(p['S_N'] != null ? p['S_N'] : '') + '</td></tr>' +
-                  '<tr><td colspan="2"><strong>Organization</strong><br />' +
-                    escapeHtml(p['Name_of_Organization'] || '') + '</td></tr>' +
+var bio_detail_rows = function(p) {
+    var s = '' +
                   '<tr><th scope="row">Location</th><td>' +
                     escapeHtml(p['Location'] || '') + '</td></tr>' +
                   '<tr><th scope="row">Type of Grant</th><td>' +
@@ -21,7 +11,7 @@ var bio_table_generator = function(feature) {
         // Enterprise classification (from the moreDataFromFFF Enterprise
         // Commodity / Nature of Enterprises CSVs, via grantees_attributes.json).
         if (p.enterprise_classifications && p.enterprise_classifications.length) {
-            bio += '<tr><th scope="row">Enterprise Classification</th><td>' +
+            s += '<tr><th scope="row">Enterprise Classification</th><td>' +
                 escapeHtml(p.enterprise_classifications.join(', ')) + '</td></tr>';
         }
 
@@ -40,7 +30,7 @@ var bio_table_generator = function(feature) {
                 line += '</div>';
                 return line;
             }).join('');
-            bio += '<tr><th scope="row">Grants</th><td>' + gHtml + '</td></tr>';
+            s += '<tr><th scope="row">Grants</th><td>' + gHtml + '</td></tr>';
         }
 
         // Restoration records: direct vs contributed area and people benefited.
@@ -56,7 +46,7 @@ var bio_table_generator = function(feature) {
                 line += '</div>';
                 return line;
             }).join('');
-            bio += '<tr><th scope="row">Restoration</th><td>' + rHtml + '</td></tr>';
+            s += '<tr><th scope="row">Restoration</th><td>' + rHtml + '</td></tr>';
         }
 
         // Women-led enterprise records.
@@ -71,8 +61,24 @@ var bio_table_generator = function(feature) {
                 line += '</div>';
                 return line;
             }).join('');
-            bio += '<tr><th scope="row">Women-led</th><td>' + wHtml + '</td></tr>';
+            s += '<tr><th scope="row">Women-led</th><td>' + wHtml + '</td></tr>';
         }
+
+    return s;
+};
+var bio_table_generator = function(feature) {
+    if (feature) {
+        var p = feature.properties || {};
+        bio =
+            '<div class="row">' +
+              '<div class="col-12">' +
+                '<div class="org-card">' +
+                '<table class="table">' +
+                  '<tr><td colspan="2"><strong>S.N.</strong> ' +
+                    escapeHtml(p['S_N'] != null ? p['S_N'] : '') + '</td></tr>' +
+                  '<tr><td colspan="2"><strong>Organization</strong><br />' +
+                    escapeHtml(p['Name_of_Organization'] || '') + '</td></tr>' +
+                  bio_detail_rows(p);
 
         bio +=
                 '</table>' +
@@ -83,6 +89,12 @@ var bio_table_generator = function(feature) {
         bio = 'Hover over a point to see organization information.';
     }
     return bio;
+};
+var bio_details_generator = function(feature) {
+    if (!feature) return '';
+    var p = feature.properties || {};
+    var name = p.Name_of_Organization || ('S.N. ' + p.S_N);
+    return '<details class="org-details"><summary>' + escapeHtml(name) + '</summary><table class="table">' + bio_detail_rows(p) + '</table></details>';
 };
 
 // ---------------------------------------------------------------------------

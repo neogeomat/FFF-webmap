@@ -84,12 +84,12 @@
         86.4777685254509,
         26.7140205357528
       ],
-      "organization_type": null,
-      "municipality": "",
+      "organization_type": "farmers_group",
+      "municipality": "Kathmandu Metropolitan City",
       "district": "",
-      "province": "",
+      "province": "Bagmati",
       "direct_hh": null,
-      "total_hh": null,
+      "total_hh": 271000.0,
       "area_ha": null
     },
     {
@@ -280,25 +280,6 @@
       "coordinates": [
         80.5395794543661,
         29.8426482535049
-      ],
-      "organization_type": null,
-      "municipality": "",
-      "district": "",
-      "province": "",
-      "direct_hh": null,
-      "total_hh": null,
-      "area_ha": null
-    },
-    {
-      "org_id": 21,
-      "name": "National Farmer Group Federation",
-      "location": "Baneshwor, Kathmandu, Nepal",
-      "type_of_grant": "LoA",
-      "commodities": "PGS- Safe agri. products",
-      "has_geometry": true,
-      "coordinates": [
-        86.4777685254509,
-        26.7139438664866
       ],
       "organization_type": null,
       "municipality": "",
@@ -516,31 +497,12 @@
         83.8659763966365,
         27.5819630378295
       ],
-      "organization_type": null,
-      "municipality": "",
-      "district": "",
-      "province": "",
-      "direct_hh": null,
+      "organization_type": "forest_sector",
+      "municipality": "Binayi Triveni Rural Municipality-1, Dumkibas",
+      "district": "Nawalpur",
+      "province": "Gandaki",
+      "direct_hh": 20.0,
       "total_hh": null,
-      "area_ha": null
-    },
-    {
-      "org_id": 34,
-      "name": "National Farmer Group Federation (NFGF), Nepal",
-      "location": "Baneshwor, Kathmandu, Nepal",
-      "type_of_grant": "LoA",
-      "commodities": "PGS certified agri. products",
-      "has_geometry": true,
-      "coordinates": [
-        86.4777041524378,
-        26.713963033808
-      ],
-      "organization_type": "farmers_group",
-      "municipality": "Kathmandu Metropolitan City",
-      "district": "",
-      "province": "Bagmati",
-      "direct_hh": null,
-      "total_hh": 271000.0,
       "area_ha": null
     },
     {
@@ -1041,25 +1003,6 @@
       "direct_hh": 11.0,
       "total_hh": 9745.0,
       "area_ha": 112.0
-    },
-    {
-      "org_id": 66,
-      "name": "Binayi Samudayik Ban Upobhokta Samu",
-      "location": "Binayi Triveni Rural Municipality, 1 and 9, Dumkibas, Nawalpur, Gandaki, Nepal",
-      "type_of_grant": "DBG",
-      "commodities": "Biofertilizer",
-      "has_geometry": true,
-      "coordinates": [
-        83.8659763966365,
-        27.5819630378295
-      ],
-      "organization_type": "forest_sector",
-      "municipality": "Binayi Triveni Rural Municipality-1, Dumkibas",
-      "district": "Nawalpur",
-      "province": "Gandaki",
-      "direct_hh": 20.0,
-      "total_hh": null,
-      "area_ha": null
     },
     {
       "org_id": 67,
@@ -1621,7 +1564,7 @@
     },
     {
       "grant_sn": 21,
-      "org_id": 21,
+      "org_id": 5,
       "grantee_name": "National Farmer Group Federation",
       "implementation_period": "15 December 2021-15 November 2022",
       "grant_title": "Promoting Organic Agri-Entrepreneurship adopting Participatory Guarantee System (PGS)",
@@ -1764,7 +1707,7 @@
     },
     {
       "grant_sn": 34,
-      "org_id": 34,
+      "org_id": 5,
       "grantee_name": "National Farmer Group Federation (NFGF), Nepal",
       "implementation_period": "06 December 2023- 05 December 2024",
       "grant_title": "Promote collective agro-entrepreneurship based on ecological practices incorporating Participatory Guarantee System.",
@@ -2116,7 +2059,7 @@
     },
     {
       "grant_sn": 66,
-      "org_id": 66,
+      "org_id": 33,
       "grantee_name": "Binayi Samudayik Ban Upobhokta Samu",
       "implementation_period": "October 2025 - July 2026",
       "grant_title": "Strengthening Value Addition and Market Capacity of the Bio-Fertiliser Enterprise of Binayi Community Forest, Nawalpur.",
@@ -2456,7 +2399,7 @@
       "people_benefited": 65.0
     },
     {
-      "org_id": 34,
+      "org_id": 5,
       "org_name": "National Farmers Group Federation Nepal",
       "year_block": "2022 and 2023",
       "area_direct_ha": 29.0,
@@ -2864,7 +2807,7 @@
       "people_benefited": 320.0
     },
     {
-      "org_id": 66,
+      "org_id": 33,
       "org_name": "Binayi Samudayik Ban Upobhokta Samu",
       "year_block": "2025",
       "area_direct_ha": null,
@@ -2929,8 +2872,8 @@
     }
   ],
   "match_stats": {
-    "orgs": 80,
-    "orgs_with_geometry": 39,
+    "orgs": 77,
+    "orgs_with_geometry": 36,
     "new_orgs_created": 15,
     "grants": 73,
     "grants_matched": 73,

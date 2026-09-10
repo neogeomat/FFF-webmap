@@ -14,7 +14,7 @@
     },
     {
       "enterprise_classification": "Forest-based",
-      "orgs": 28,
+      "orgs": 27,
       "contracts": 27.0,
       "loa_usd": 336226.15,
       "dbg_usd": 283020.96,
@@ -23,7 +23,7 @@
     },
     {
       "enterprise_classification": "Farm-based",
-      "orgs": 18,
+      "orgs": 16,
       "contracts": 20.0,
       "loa_usd": 195088.59,
       "dbg_usd": 288845.89,

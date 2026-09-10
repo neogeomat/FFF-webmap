@@ -41,6 +41,15 @@ Leaflet's `geometryToLayer` returns `null` for them and `addData` skips them —
 the load; only the Point features render. Keep null-geometry rows in the file as a geocoding
 to-do list (QGIS shows them in the attribute table).
 
+**Two `S_N` rows can be ONE organization** (same CFUG, identical coordinates, one row per grant —
+the source coordinate sheet lists one row per grant). Fold the duplicate onto the surviving `S_N`
+with `SAME_ORG = {duplicate: keep}` + `canonical_org()` in BOTH `consolidate_grantees_attributes.py`
+and `make_geocsv.py`, and DELETE the duplicate FEATURE from `Webmap/data/Grantees.geojson` — leaving
+it renders a second pin with no attributes. Org/pill/pin counts then drop by one while money totals
+stay identical (assert that). Ask which row survives before merging: the survivor's base
+`Type_of_Grant` decides which grant-type pill still matches. Recipe:
+`references/attribute-data-consolidation.md`.
+
 The map now needs HTTP for EVERYTHING: boundaries use `fetch`, grantees use the ajax plugin.
 **`file://` shows no grantees AND no boundaries** — always serve over HTTP to verify.
 
@@ -86,10 +95,44 @@ After moving, verify computed `getBoundingClientRect()` of each panel over HTTP
 (see `references/panel-layout.md` for the exact probe + the hover-popup pattern).
 Panel HTML ids/classes stay the same; only css/transform/toggle logic changes.
 
+**The floating legend must track the panel by hand.** `#commodityLegend` is NOT a child of the panel —
+it is a `position:fixed` overlay whose `right`/`bottom` are set by `updateLegendPosition()` (called from
+`togglePanel()` and `setMapMode()`). Anchor its right offset to the panel's *visible* edge — the
+`#rightPanelToggle` tab — not the panel body: the tab protrudes 85px left of the panel, so positioning
+against the body hides the legend under the tab when expanded and leaves a different gap when collapsed.
+Derive from the elements (`tab.offsetWidth` + `rightPanel.offsetWidth` + the 10px screen inset + a
+constant gap) so the legend travels exactly as far as the panel. Verify by measuring
+`getBoundingClientRect()` of legend and tab in both states: the gap must be identical and the legend's
+travel must equal the panel's travel (offsetWidth is stable mid-transition; rects are not).
+
+**Getting the Leaflet map instance:** `var map = L.map('map', …)` is closure-scoped, so the global `map`
+is the `<div id="map">` (browser named access) — `map instanceof L.Map` is false and `L.map.instances`
+does not exist, which makes `invalidateSize()` helpers throw on every panel toggle. Anchor on a layer you
+hold instead: `(window.layer_Nepal && window.layer_Nepal._map) || (window.clusters_Grantees && window.clusters_Grantees._map)`.
+
+**Do not assume those layer globals exist** — `window.clusters_Grantees` / `window.layer_Grantees` are
+undefined in the current build, so a probe that reaches for `._map` throws instead of returning a
+map. When you need the map (or an unclustered pin) and no global exposes it, drive the DOM: dispatch
+clicks on `.grantee-cluster` until `.org-pin-wrap` appears (recipe in
+`references/leaflet-browser-verify.md`).
+
 ## Verification loop (do this for any UI change)
 1. Make the edit (`Webmap/index.html` and/or `Webmap/js/myFuncs.js`).
-2. Serve over HTTP and load in a real browser: `python3 -m http.server 8000 --directory Webmap`
-   → `http://localhost:8000`. **Never verify boundary overlays via `file://`.**
+2. Serve over HTTP — `python3 -m http.server 6115 --directory Webmap` → `http://localhost:6115`.
+   Check `ss -ltnp | grep 6115` first: a stale `http.server` from an earlier session keeps the
+   port and serves the OLD copy (your edit looks missing, data URLs 404). **Never verify
+   boundary overlays via `file://`.**
+   Verify with the headless Playwright harness (Chromium already installed):
+   `cd ~/pw-check && node verify_web_ui.js` — edit its CONFIG for app-specific assertions;
+   exits non-zero on real console/pageerror (benign `polyfill.io` + tile-abort noise filtered).
+   Hover behaviour has its own probe in this skill: `scripts/probe_hover.js` (cluster popup →
+   collapsible closed cards with the org name as `<summary>`, marker popup → full card, popup still
+   open after the pointer moves inside it); copy it to `~/pw-check` and run with `node` — it exits
+   non-zero on any page error or failed persistence check. `scripts/biogen.js` prints the card
+   generator HTML for a fixed synthetic feature; diff/md5 it before and after any `myFuncs.js`
+   refactor to prove `bio_table_generator` output is unchanged.
+   `browser_exec` is NOT the route on this host: it needs an installed Chrome plus the user
+   clicking "Allow remote debugging", and no Chrome is installed.
 
    **Cache pitfall (bit me):** the long-lived headless-Chrome profile caches `myFuncs.js`
    (and other sub-resources), so after editing `myFuncs.js` the browser keeps running the OLD
@@ -103,6 +146,16 @@ Panel HTML ids/classes stay the same; only css/transform/toggle logic changes.
    `#granteeFilterBar` checkboxes first, since District/Province start off; Chure and Nepal start on);
    pane class is `leaflet-pane_<Name>-pane`, not `.pane_<Name>`. The user rejects "done"
    without proof it renders. Confirm before reporting success.
+
+## Two skill copies — keep them identical
+This skill exists twice: global `~/.hermes/skills/web-mapping/fao-fff-grantees-map/` and in-repo
+`Webmap/.hermes/skills/fao-fff-grantees-map/`. After editing either, `diff -rq` the two and copy
+the newer tree over the older. `Webmap/.gitignore` ignores `*.md`, so new in-repo reference files
+land untracked (`git add -f` to publish). Other agents (e.g. opencode) edit this repo
+concurrently: committed work appears without you, and a dirty working tree can get swept into
+someone else's baseline commit. Before syncing or copying anything, re-check `git status` and
+`diff -rq`, and use `git log -S '<marker>' -- <path>` to find which commit carries a change
+instead of assuming yours is still uncommitted.
 
 ## Grantee filters + details panel (sourced from grantees_attributes.json)
 The Commodities filter and the right Details panel read CSV-derived attributes merged onto each
@@ -118,14 +171,33 @@ feature at render time (in `index.html`, inside `layer_Grantees.on('data:loaded'
   (`p.subcategories.some(...)`), so multi-grant orgs filter correctly.
 - **Details panel** (`bio_table_generator` in `Webmap/js/myFuncs.js`) renders Enterprise
   Classification, a Grants list (period/title/classification·commodity), Restoration
-  (direct + contributed ha, people benefited, by year block) and Women-led records. The cluster
-  hover table shows a compact Classification + Impact line too.
-- **Hover popup mirrors the info panel.** `index.html` keeps one shared `.info-hover-popup`
-  `<div>` (appended to `body`), shown on point `mouseover` (`showHoverPopup(bio_table_generator(feature))`)
-  and on cluster `clustermouseover` (`showHoverPopup(clusterOrgTableHTML(e.layer))`), hidden on
-  `mouseout`/`clustermouseout`. It reuses the EXACT same HTML the `#aggregate` panel shows, so the
-  popup and the pinned Details panel never diverge. Position it clear of the bottom/right panels
-  (top-right of the viewport). Verify it fills on hover and clears on mouseout over HTTP
-  (see `references/panel-layout.md`).
+  (direct + contributed ha, people benefited, by year block) and Women-led records.
+- **Hover content differs by target — but both use the SAME card style (user rule).**
+  Individual marker hover → `bio_table_generator(feature)` (full card). Cluster hover →
+  `clusterOrgCardsHTML(cluster)` → one `bio_details_generator(feature)` per member: native
+  `<details>/<summary>` with the organization name in the summary and every other field inside the
+  collapsible. Never hand-write per-member markup, and never ship a cluster variant that shows
+  names-only or plain detail tables — the user rejects a cluster popup whose style differs from the
+  marker popup, so route BOTH through the shared generators in `js/myFuncs.js`.
+- **Refactoring the card generators.** `bio_detail_rows(p)` holds the `<tr>`s from Location onwards
+  and is shared by `bio_table_generator` (individual hover) and `bio_details_generator` (cluster).
+  `bio_table_generator`'s output must stay BYTE-IDENTICAL across such a refactor — prove it by
+  md5-ing the sections `scripts/biogen.js` prints before and after, not by eyeballing a popup.
+- **One shared floating popup.** `index.html` keeps one `.info-hover-popup` `<div>` on `body`, shown
+  on point `mouseover` and cluster `clustermouseover`, hidden on `mouseout`/`clustermouseout`. The
+  same HTML goes into `#aggregate` and the popup, so panel and box never diverge; position it clear
+  of the bottom/right panels (see `references/hover-popup-positioning.md`).
+- **The popup must survive the pointer travelling into it (user rule).** `.info-hover-popup` needs
+  `pointer-events: auto`, a `popupHovered` flag, and a DEFERRED hide: `hideHoverPopup()` returns
+  early while hovered, otherwise clears the box after ~250 ms on a timer that `mouseenter` cancels.
+  Mechanism: the marker's `mouseout` fires BEFORE the popup's `mouseenter` across the 18 px gap, so
+  an immediate hide destroys the box mid-travel — and any clickable content in it (`<details>`
+  summaries) becomes unusable.
 - See `references/panel-layout.md` for the verified panel-remap + hover-popup recipe and the
   `getBoundingClientRect` probe used to confirm geometry after a move.
+
+## Aggregate panel charts
+`#rightPanel #tab-aggregate` creates the Chart.js placeholders (`window.chartPie`, `window.chartBar`) in one IIFE. `#chartInvestment` is live: it fetches `data/investment_by_enterprise.json` (generated by `summarise_investment.py` from the per-org finance columns deduped by `S_N`) and renders a LoA/DBG stacked bar by `enterprise_classification`. It is a STATIC snapshot: like the
+pie/bar placeholders it does not react to the filters, and it only changes when
+`python3 summarise_investment.py` is re-run after a finance or geojson edit (re-run it after any org
+merge too, and confirm the TOTAL row is unchanged).

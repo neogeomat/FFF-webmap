@@ -246,23 +246,6 @@
     {
       "type": "Feature",
       "properties": {
-        "S_N": 21,
-        "Name_of_Organization": "National Farmer Group Federation",
-        "Location": "Baneshwor, Kathmandu, Nepal",
-        "Type_of_Grant": "LoA",
-        "Commodities": "PGS- Safe agri. products"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          86.4777685254509,
-          26.7139438664866
-        ]
-      }
-    },
-    {
-      "type": "Feature",
-      "properties": {
         "S_N": 22,
         "Name_of_Organization": "Parbatphedi Srijana Yova Club",
         "Location": "Dasrathchand Muicipality, Baidtai, Nepal",
@@ -437,23 +420,6 @@
         "coordinates": [
           83.8659763966365,
           27.5819630378295
-        ]
-      }
-    },
-    {
-      "type": "Feature",
-      "properties": {
-        "S_N": 34,
-        "Name_of_Organization": "National Farmer Group Federation (NFGF), Nepal",
-        "Location": "Baneshwor, Kathmandu, Nepal",
-        "Type_of_Grant": "LoA",
-        "Commodities": "PGS certified agri. products"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          86.4777041524378,
-          26.713963033808
         ]
       }
     },
@@ -866,23 +832,6 @@
         "Commodities": "Turmeric"
       },
       "geometry": null
-    },
-    {
-      "type": "Feature",
-      "properties": {
-        "S_N": 66,
-        "Name_of_Organization": "Binayi Samudayik Ban Upobhokta Samu",
-        "Location": "Binayi Triveni Rural Municipality, 1 and 9, Dumkibas, Nawalpur, Gandaki, Nepal",
-        "Type_of_Grant": "DBG",
-        "Commodities": "Biofertilizer"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          83.8659763966365,
-          27.5819630378295
-        ]
-      }
     },
     {
       "type": "Feature",

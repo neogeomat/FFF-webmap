@@ -900,7 +900,7 @@
         
         // Invalidate map size after panel transition
         setTimeout(function() {
-            var m = (typeof map !== 'undefined' && map instanceof L.Map) ? map : L.map.instances[0];
+            var m = (window.layer_Nepal && window.layer_Nepal._map) || (window.clusters_Grantees && window.clusters_Grantees._map);
             if (m && m.invalidateSize) { m.invalidateSize(); }
         }, 300);
         updateLegendPosition();
@@ -912,7 +912,9 @@
         if (!legend) return;
         var rightCollapsed = rightPanel && rightPanel.classList.contains('collapsed');
         var bottomCollapsed = bottomPanel && bottomPanel.classList.contains('collapsed');
-        legend.style.right = rightCollapsed ? '100px' : '360px';
+        var panelW = rightPanel ? rightPanel.offsetWidth : 340;
+        var inset = 10, gap = 10;
+        legend.style.right = ((rightCollapsed ? 0 : panelW + inset) + gap) + 'px';
         legend.style.bottom = bottomCollapsed ? '20px' : '360px';
     }
     if (document.readyState !== 'loading') updateLegendPosition();
@@ -935,7 +937,7 @@
                 var arr = document.getElementById('rightPanelArrow');
                 if (arr) arr.textContent = '‹';
                 setTimeout(function(){
-                    var m = (typeof map !== 'undefined' && map instanceof L.Map) ? map : (L.map && L.map.instances && L.map.instances[0]);
+                    var m = (window.layer_Nepal && window.layer_Nepal._map) || (window.clusters_Grantees && window.clusters_Grantees._map);
                     if (m && m.invalidateSize) m.invalidateSize();
                 }, 320);
             }

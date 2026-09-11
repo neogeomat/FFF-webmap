@@ -15,20 +15,19 @@ var bio_detail_rows = function(p) {
                 escapeHtml(p.enterprise_classifications.join(', ')) + '</td></tr>';
         }
 
-        // Grants list: period, title, classification and commodity per grant.
+        // Timeline: implementation periods, kept separate from the grants themselves
+        // (the classification/commodity line was removed — both already appear above
+        // in Commodities / Enterprises and Enterprise Classification).
         if (p.grants && p.grants.length) {
+            var tHtml = p.grants.map(function(g) {
+                if (!g.implementation_period) { return ''; }
+                return '<div class="grant-line"><strong>' + escapeHtml(g.implementation_period) + '</strong></div>';
+            }).join('');
+            if (tHtml) { s += '<tr><th scope="row">Timeline</th><td>' + tHtml + '</td></tr>'; }
+
             var gHtml = p.grants.map(function(g) {
-                var line = '<div class="grant-line">';
-                if (g.grant_title) { line += '<strong>' + escapeHtml(g.grant_title) + '</strong>'; }
-                if (g.implementation_period) {
-                    line += '<br /><span class="text-muted">' + escapeHtml(g.implementation_period) + '</span>';
-                }
-                var meta = [];
-                if (g.enterprise_classification) { meta.push(escapeHtml(g.enterprise_classification)); }
-                if (g.subcategory || g.enterprise_commodity) { meta.push(escapeHtml(g.subcategory || g.enterprise_commodity)); }
-                if (meta.length) { line += '<br /><span class="text-muted">' + meta.join(' \u00b7 ') + '</span>'; }
-                line += '</div>';
-                return line;
+                var title = g.grant_title || g.implementation_period || 'Grant';
+                return '<div class="grant-line"><strong>' + escapeHtml(title) + '</strong></div>';
             }).join('');
             s += '<tr><th scope="row">Grants</th><td>' + gHtml + '</td></tr>';
         }
@@ -78,6 +77,7 @@ var bio_table_generator = function(feature) {
                     escapeHtml(p['S_N'] != null ? p['S_N'] : '') + '</td></tr>' +
                   '<tr><td colspan="2"><strong>Organization</strong><br />' +
                     escapeHtml(p['Name_of_Organization'] || '') + '</td></tr>' +
+                  (p.women && p.women.length ? '<tr><td colspan="2"><strong>👩 Women-led</strong></td></tr>' : '') +
                   bio_detail_rows(p);
 
         bio +=

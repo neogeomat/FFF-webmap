@@ -35,7 +35,15 @@ inside `layer_Grantees.on('data:loaded', function(){ ... })`:
 - `clusters_Grantees.addLayer(layer_Grantees)` + `addTo(map)` + `setBounds()`
 - the `clustermouseover` hover table
 - the Type-of-Grant filter pills (`buildGranteeTypeFilter()`)
-- the left-panel DataTable (`buildGranteeTable()`)
+- the left-panel DataTable (`buildGranteeTable()`) — its row-click handler fills the Details card AND
+  zooms the map to the org with ONE deterministic call: capture the Leaflet layer in the same `eachLayer`
+  lookup, then `if (layer) { map.setView(layer.getLatLng(), Math.max(map.getZoom(), 13)); }`.
+  **Do NOT use `clusters_Grantees.zoomToShowLayer(layer, cb)`** with a `setView` inside the callback: that
+  pair races (the callback can fire mid-animation and re-clustering re-absorbs the pin), so the view
+  settled 0–126px off-centre depending on load timing — the same click gave different results on different
+  loads. Landing on a cluster icon at z13 is fine; the user clicks it to fan the members out.
+  `map` (line ~1451) and `clusters_Grantees` (~1527) are the same closure as the handler — never use
+  `window.map`, that is the `<div id="map">` element, not the Leaflet instance.
 Define those as function declarations (hoisted) so they are callable from the callback. Do NOT
 iterate `layer_Grantees.eachLayer(...)` synchronously at top level — it runs before the features
 exist and silently yields an empty map.
@@ -69,7 +77,8 @@ Nepal (1, white #ffffff, always added to the map on load).
 - Loaded via `fetch`, NOT embedded globals — **they only appear when served over HTTP;
   opening `index.html` via `file://` silently shows no boundaries.** The Grantees layer
   still works on file:// (it uses the embedded `var json_Grantees`).
-- Startup base layer is `No background` (`empty_baseLayer = L.gridLayer({})`) so the light-green `#map` background (`#e8f5e9`) shows; Satellite (Esri) and OpenStreetMap stay selectable in the switcher.
+- **Startup canvas (user rules):** base layer is `No background` so the light-green `#map` background (`#e8f5e9`, one CSS declaration on `#map`) shows; Satellite (Esri) and OpenStreetMap stay selectable in the switcher but are NOT added on load. **Above z12 the satellite turns itself on, at ≤12 it turns off** — one `map.on('zoomend')` handler that adds/removes `layer_EsriImagery` against `empty_baseLayer`; `L.control.layers` re-ticks its own radio off the `layeradd`/`layerremove` events, so never hand-sync the switcher. Verify the threshold with the row-zoom as a known anchor (it lands exactly at z13, so the satellite must already be on there): one zoom-out to z12 must clear every `img.leaflet-tile` and zooming back to z13 must bring them back. Implement the empty base as `L.gridLayer({})`, never `L.tileLayer('')` — the blank tileLayer still spawns a screenful of tile elements (bogus requests for the page itself) even though nothing paints. Assert both sides of that judgement: `img.leaflet-tile` count 0 on startup, and > 0 after clicking `Satellite (Esri)` in the switcher (proves the base-layer choice still works).
+- **The startup fit must leave the east edge clear of the floating legend** (user: the legend was blocking the east side on startup). `setBounds()` does `map.fitBounds(bounds_group.getBounds(), { paddingBottomRight: [200, 0] })` — 200px reserved on the right (~the collapsed right panel plus the 190px legend) shifts the fitted content left by half of it and zooms out a hair. Measure `window.layer_Grantees`-free (it is closure-scoped): the east-most `.org-pin-wrap`/`.grantee-cluster` right edge must sit left of `.commodity-legend`'s left edge with zero markers intersecting the legend rect; on the un-padded build markers sat ~67px underneath it.
 - No zoom auto-toggle anymore — District/Local Level/Province/Chure are toggled manually via checkboxes in
   the top `#granteeFilterBar` pill bar (District/Province/Chure default ON, Local Level default OFF). Nepal and
   the Organizations (grantee marker) cluster layer are ON by default.
@@ -127,6 +136,14 @@ is the `<div id="map">` (browser named access) — `map instanceof L.Map` is fal
 does not exist, which makes `invalidateSize()` helpers throw on every panel toggle. Anchor on a layer you
 hold instead: `(window.layer_Nepal && window.layer_Nepal._map) || (window.clusters_Grantees && window.clusters_Grantees._map)`.
 
+**The zoom LEVEL is not readable from a probe either** (same closure), so never assume it: anchor on an
+action whose zoom you control — the left-panel row click lands on exactly `z13` — then step the map ±1
+with `.leaflet-control-zoom-in/-out` and assert the behaviour flips one step BELOW the anchor and back
+one step ABOVE it. Read the two observables that ARE in the DOM: `img.leaflet-tile` count and the
+`.leaflet-control-layers-base input:checked` radio. Assert both directions (in and out) — a one-way
+check passes on a handler that never turns the layer back off. Recipe + re-runnable probe:
+`scripts/probe_map_chrome.js`.
+
 **Do not assume those layer globals exist** — `window.clusters_Grantees` / `window.layer_Grantees` are
 undefined in the current build, so a probe that reaches for `._map` throws instead of returning a
 map. When you need the map (or an unclustered pin) and no global exposes it, drive the DOM: dispatch
@@ -134,7 +151,16 @@ clicks on `.grantee-cluster` until `.org-pin-wrap` appears (recipe in
 `references/leaflet-browser-verify.md`).
 
 ## Verification loop (do this for any UI change)
-1. Make the edit (`Webmap/index.html` and/or `Webmap/js/myFuncs.js`).
+1. Make the edit. Page markup lives in `Webmap/index.html` (only ~174 lines: markup + tags), page
+   styles in `Webmap/css/map.css`, all page logic in `Webmap/js/map.js` (23.0: these were split out of
+   index.html — a pure move, bodies byte-identical). `Webmap/js/myFuncs.js` holds the card/pin builders.
+   **`js/map.js` must stay a plain `<script src>` — never add `defer`**: every vendored lib in this page
+   is deferred, so a deferred copy would execute after them and change order. **A qgis2web re-export
+   rewrites `index.html` and undoes the split** — re-apply the move afterwards.
+   To re-do or extend the split: locate the blocks by `line.strip() == '<style>'` / `'<script>'`
+   (the file is CRLF — an exact `lines.index('<style>')` silently fails), slice the body, `cmp` it
+   byte-for-byte against the pre-split copy, and replace with `<link>` / `<script src>` **in the same
+   position**.
 2. Serve over HTTP — `python3 -m http.server 6115 --directory Webmap` → `http://localhost:6115`.
    Check `ss -ltnp | grep 6115` first: a stale `http.server` from an earlier session keeps the
    port and serves the OLD copy (your edit looks missing, data URLs 404). **Never verify
@@ -142,6 +168,8 @@ clicks on `.grantee-cluster` until `.org-pin-wrap` appears (recipe in
    Verify with the headless Playwright harness (Chromium already installed):
    `cd ~/pw-check && node verify_web_ui.js` — edit its CONFIG for app-specific assertions;
    exits non-zero on real console/pageerror (benign `polyfill.io` + tile-abort noise filtered).
+   Map chrome (startup base layer + light-green canvas + boundary pill defaults + the zoom-driven
+   satellite swap + filter-bar collapse-on-outside-click) has its own probe: `scripts/probe_map_chrome.js`.
    Hover behaviour has its own probe in this skill: `scripts/probe_hover.js` (cluster popup →
    collapsible closed cards with the org name as `<summary>`, marker popup → full card, popup still
    open after the pointer moves inside it); copy it to `~/pw-check` and run with `node` — it exits
@@ -186,9 +214,19 @@ feature at render time (in `index.html`, inside `layer_Grantees.on('data:loaded'
   Dairy / Timur / Bamboo / Vegetables; ~11 distinct on-map) instead of the ~35 free-text
   `Commodities` strings. A marker matches when ANY of its `subcategories` is checked
   (`p.subcategories.some(...)`), so multi-grant orgs filter correctly.
-- **Details panel** (`bio_table_generator` in `Webmap/js/myFuncs.js`) renders Enterprise
-  Classification, a Grants list (period/title/classification·commodity), Restoration
-  (direct + contributed ha, people benefited, by year block) and Women-led records.
+- **The filter bar collapses when the user clicks outside it (user rule).** `#granteeFilterBar` opens only
+  via `#filterToggle`; a document-level `click` handler calls the same `toggleFilters()` when the click
+  landed outside `#filterBarWrap` and the bar is not already `collapsed`. Keep the early return for clicks
+  INSIDE the wrapper (pills, search box) so ticking several pills does not close the bar mid-task — the
+  toggle button lives inside the wrapper, so it never double-fires. Assert three ways: open → click a pill
+  (stays open) → click the map or the legend (collapses, label back to `Filters ▾`, `aria-expanded=false`).
+- **Details panel** (`bio_table_generator` in `Webmap/js/myFuncs.js`) renders a `👩 Women-led`
+  line directly under the organization name (only when `women[]` is non-empty — user rule: women-led
+  is headline info, not a footnote), Enterprise Classification, then **two rows: `Timeline` (the
+  grants' `implementation_period`, one line each) and `Grants` (titles only)** — never one row mixing
+  title + period + `classification · commodity`, because both the classification and the commodity
+  already appear in the rows above (user: "the line after time seems redundant") — then Restoration
+  (direct + contributed ha, people benefited, by year block) and the Women-led detail records.
 - **Hover content differs by target — but both use the SAME card style (user rule).**
   Individual marker hover → `bio_table_generator(feature)` (full card). Cluster hover →
   `clusterOrgCardsHTML(cluster)` → one `bio_details_generator(feature)` per member: native
@@ -264,7 +302,10 @@ panel content. Current target for `#leftPanel`:
   `calc(100vh - 180px)`).
 - **Overflow only, no page numbers:** `dom: 'f<t>'` (the trailing `p` is what renders the pagination
   footer) with `"paging": false`, dropping `pageLength`/`pagingType`. All orgs then sit in one scrollable
-  list under the search box; the row-click handler that fills `#aggregate` is unaffected.
+  list under the search box; the row-click handler that fills `#aggregate` is unaffected. Guard that
+  handler with `if (!data) { return; }`: `table.row(this).data()` is `undefined` for the
+  "No matching records found" placeholder row, so clicking an empty search result throws
+  `Cannot read properties of undefined (reading '1')` (pre-existing, found by probing the empty state).
 - Verify at several window sizes (1400×900, 1280×750, 1600×1200): panel bottom = viewport − 100,
   `.panel-content` `scrollHeight - clientHeight` = 0 (exactly ONE scrollbar), `.dataTables_paginate`
   count 0, row count = org count, and the search box still filters the list.

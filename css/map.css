@@ -1,0 +1,748 @@
+/* FAO FFF grantees map - page styles, split out of index.html.
+   Re-apply this split after any qgis2web re-export (it rewrites index.html). */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        
+        #map {
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            background: #e8f5e9;   /* light green canvas */
+        }
+        
+        /* Page title overlay */
+        .page-title-overlay {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        
+        /* Collapsible panel base styles */
+        .map-panel {
+            position: fixed;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .map-panel.collapsed {
+            transform: translateX(calc(-100% - 10px));
+        }
+        
+        .map-panel.left-panel.collapsed {
+            transform: translateX(calc(-100% - 10px));
+        }
+
+        /* Right panel is now at the BOTTOM → slide down off-canvas when collapsed */
+        .map-panel.bottom-panel.collapsed {
+            transform: translateY(calc(100% + 10px));
+        }
+
+        /* Bottom panel is now on the RIGHT → slide right off-canvas when collapsed */
+        .map-panel.right-panel.collapsed {
+            transform: translateX(calc(100% + 10px));
+        }
+        
+        .panel-toggle-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #0070b6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            width: auto;
+            min-width: 24px;
+            padding: 0 8px;
+            height: 60px;
+            cursor: pointer;
+            z-index: 1001;
+            display: flex;
+            flex-direction: row;
+            gap: 4px;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            transition: background 0.2s;
+        }
+        
+        .panel-toggle-btn:hover {
+            background: #005a93;
+        }
+        
+        /* Toggle buttons ride on their panel (children of .map-panel) and
+           protrude just past the panel's screen-facing edge, so the panel can
+           slide fully off-screen while only the button tab stays visible. */
+        /* Left panel toggle: protrudes to the RIGHT of the left panel */
+        .left-panel .panel-toggle-btn {
+            position: absolute;
+            right: -85px;
+            top: 50%;
+            left: auto;
+            bottom: auto;
+            transform: translateY(-50%);
+            border-radius: 0 4px 4px 0;
+        }
+        /* Right panel is now at the BOTTOM → toggle protrudes ABOVE the panel */
+        .bottom-panel .panel-toggle-btn {
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            right: auto;
+            bottom: auto;
+            transform: translateX(-50%);
+            width: auto;
+            min-width: 60px;
+            height: 28px;
+            padding: 0 10px;
+            border-radius: 4px 4px 0 0;
+        }
+        /* Bottom panel is now on the RIGHT → toggle protrudes to the LEFT of the panel */
+        .right-panel .panel-toggle-btn {
+            position: absolute;
+            left: -85px;
+            top: 50%;
+            right: auto;
+            bottom: auto;
+            transform: translateY(-50%);
+            border-radius: 4px 0 0 4px;
+        }
+        .gf-label {
+            font-size: 13px;
+            font-weight: normal;
+            white-space: nowrap;
+        }
+        
+        .panel-content {
+            padding: 15px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        
+        .panel-header {
+            font-size: 16px;
+            font-weight: bold;
+            color: #0070b6;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #ced4da;
+        }
+        
+        /* Left panel (Grantees list) */
+        #leftPanel {
+            top: 80px;
+            left: 10px;
+            width: 280px;
+            bottom: 100px;
+            height: auto;
+            max-height: calc(100vh - 180px);
+        }
+        
+        /* Details panel — now at the BOTTOM (#bottomPanel holds #aggregate) */
+        #bottomPanel {
+            left: 10px;
+            right: 10px;
+            bottom: 0;
+            height: 350px;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        /* Aggregate (right) panel — now on the RIGHT side (#rightPanel holds charts + legend) */
+        #rightPanel {
+            top: 80px;
+            right: 10px;
+            width: 340px;
+            bottom: 100px;
+        }
+        
+        .info {
+            padding: 6px 8px;
+            font: 14px/16px Arial, Helvetica, sans-serif;
+            background: white;
+            background: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+            pointer-events: none;
+        }
+        /* Hover popup that mirrors #aggregate content on point/cluster hover */
+        .info-hover-popup {
+            position: fixed;
+            z-index: 1200;
+            max-width: 300px;
+            max-height: 60vh;
+            overflow: auto;
+            background: rgba(255, 255, 255, 0.97);
+            border: 1px solid #0070b6;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.32);
+            border-radius: 8px;
+            pointer-events: auto;
+            font: 11px/13px Arial, Helvetica, sans-serif;
+            color: #1a3c5e;
+            padding: 6px 10px;
+        }
+        .info-hover-popup table { font: 11px/13px Arial, Helvetica, sans-serif; color: #1a3c5e; margin: 0; }
+        .info-hover-popup .org-details { margin: 0 0 6px 0; }
+        .info-hover-popup .org-details > summary { cursor: pointer; font: bold 12px/13px Arial, Helvetica, sans-serif; color: #0070b6; padding: 4px 0; border-bottom: 1px solid #ced4da; margin-bottom: 6px; }
+        .info-hover-popup p.text-muted { color: #0070b6 !important; font-weight: 700 !important; font-size: 12px !important; padding: 4px 0; border-bottom: 1px solid #ced4da; margin: 0 0 6px; }
+        /* Popup tables are single-column: label on its own line, value gets the full width */
+        .info-hover-popup table tr { display: block; }
+        .info-hover-popup table th, .info-hover-popup table td { display: block; width: auto; text-align: left; padding: 0 6px; }
+        .info-hover-popup table th { color: #0070b6; font-weight: 600; padding-top: 3px; border-top: 1px solid #e9eff5; }
+        .info-hover-popup table tr:first-child th { border-top: 0; }
+        .info-hover-popup table td { border-top: 0; padding-bottom: 3px; }
+        /* mirrored #aggregate markup brings bootstrap grid gutters that overflow the popup box */
+        .info-hover-popup .row { margin-left: 0; margin-right: 0; }
+        .info-hover-popup [class^="col-"] { padding-left: 0; padding-right: 0; }
+        .info-hover-popup .org-card { background: transparent; box-shadow: none; border-radius: 8px; }
+        .info-hover-popup .panel-header,
+        .info-hover-popup .gf-label { display: none; }
+        .org-pin-wrap {
+            background: transparent;
+            border: none;
+        }
+        /* FFF icon used for individual (unclustered) grantee points */
+        .org-pin-img {
+            width: 32px;
+            height: 28px;
+            object-fit: contain;
+            display: block;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+            cursor: pointer;
+        }
+        .org-pin-img:hover {
+            filter: drop-shadow(0 0 0 2px #0070b6) drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+        }
+        /* Permanent name tooltip on the map */
+        .org-tip-name {
+            background: rgba(255, 255, 255, 0.97);
+            border: 1px solid #0070b6;
+            border-radius: 8px;
+            color: #1a3c5e;
+            font: 11px/13px Arial, Helvetica, sans-serif;
+            padding: 2px 6px;
+            white-space: normal;
+            width: 160px;
+            max-width: 160px;
+            text-align: center;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.32);
+        }
+        .leaflet-tooltip.org-tip-name::before { display: none; }
+
+        /* ---- Commodity pins (literal crop drawings) ---- */
+        .commodity-pin {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.45), 0 0 0 2px rgba(255,255,255,0.85);
+            cursor: pointer;
+        }
+        .commodity-emoji { font-size: 16px; line-height: 1; }
+        /* Two-commodity pin: one circle split in half, each icon clipped to its half */
+        .commodity-pin.split { position: relative; overflow: hidden; }
+        .commodity-pin.split .commodity-emoji { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+        .commodity-pin.split .half-left { clip-path: inset(0 50% 0 0); }
+        .commodity-pin.split .half-right { clip-path: inset(0 0 0 50%); }
+        .commodity-stack { display: flex; gap: 2px; align-items: center; }
+        .mini-pin {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+            font-size: 11px;
+            line-height: 1;
+        }
+        /* ---- Commodity legend — floating overlay, fitted to contents, moves with both panels ---- */
+        .commodity-legend {
+            position: fixed;
+            bottom: 360px;
+            right: 360px;
+            width: 190px;
+            max-height: 38vh;
+            z-index: 1001;
+            background: rgba(255,255,255,0.97);
+            border: 1px solid #0070b6;
+            border-radius: 8px;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.32);
+            padding: 6px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            overflow-y: auto;
+            font: 11px/13px Arial, Helvetica, sans-serif;
+            color: #1a3c5e;
+            height: auto;
+            transition: bottom 0.3s ease, right 0.3s ease;
+        }
+        .commodity-legend.collapsed .legend-content { display: none; }
+        .commodity-legend.collapsed { height: auto; }
+        .commodity-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #f3f8fc;
+            border: 1px solid #ced4da;
+            border-radius: 999px;
+            padding: 2px 6px;
+            white-space: nowrap;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.18s, color 0.18s, border-color 0.18s, opacity 0.18s;
+            font-size: 10px;
+        }
+        .commodity-legend-item.checked {
+            background: #0070b6;
+            color: #ffffff;
+            border-color: #0070b6;
+        }
+        .commodity-legend-item:not(.checked) { opacity: 0.6; }
+        .commodity-legend-item .gf-box { display: inline-flex; align-items: center; justify-content: center; width: 12px; height: 12px; border: 1px solid currentColor; border-radius: 2px; font-size: 10px; line-height: 1; }
+        .commodity-legend-item:not(.checked) .gf-box { opacity: 0.3; }
+        .commodity-legend-item .mini-pin { width: 18px; height: 18px; font-size: 10px; }
+        .commodity-legend-title { font-weight: bold; color: #0070b6; margin-right: 4px; white-space: nowrap; }
+        .legend-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: bold;
+            color: #0070b6;
+            font-size: 12px;
+            padding: 4px 0;
+            cursor: pointer;
+            user-select: none;
+            border-bottom: 1px solid #ced4da;
+            margin-bottom: 6px;
+        }
+        .legend-section { display: flex; flex-direction: column; gap: 4px; }
+        .legend-section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 600;
+            color: #1a3c5e;
+            font-size: 11px;
+            cursor: pointer;
+            user-select: none;
+            padding: 2px 0;
+        }
+        .legend-section-content {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .legend-section.collapsed .legend-section-content { display: none; }
+        .legend-section.collapsed .legend-section-header span:last-child { transform: rotate(-90deg); }
+
+        /* ---- Cluster markers (orange, distinct from blue points) ---- */
+        .grantee-cluster {
+            background: rgba(230, 126, 34, 0.85);
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            color: #ffffff;
+            font: bold 13px/24px Arial, Helvetica, sans-serif;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 0 2px rgba(0,0,0,0.45), 0 2px 4px rgba(0,0,0,0.5);
+        }
+        /* ---- Filter bar below tabs (collapsible, centered) ---- */
+        .filter-bar-wrap {
+            position: fixed;
+            top: 54px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1001;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            pointer-events: none;
+        }
+        .filter-toggle {
+            pointer-events: auto;
+            background: #ffffff;
+            border: 1px solid #0070b6;
+            color: #0070b6;
+            border-radius: 999px;
+            padding: 5px 14px;
+            font: 12px/16px Arial, Helvetica, sans-serif;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.22);
+            transition: background 0.18s, color 0.18s;
+        }
+        .filter-toggle:hover { background: #e3eef6; }
+        .filter-toggle.active { background: #0070b6; color: #ffffff; }
+        .grantee-filter {
+            pointer-events: auto;
+            position: relative;
+            top: auto;
+            left: auto;
+            z-index: 1000;
+            background: #ffffff;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            padding: 10px 14px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+            max-width: min(90vw, 900px);
+        }
+        .grantee-filter.collapsed {
+            display: none !important;
+        }
+        .grantee-filter .gf-title {
+            font: bold 14px/18px Arial, Helvetica, sans-serif;
+            color: #1a3c5e;
+            white-space: nowrap;
+        }
+        .gf-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+        /* Visual separator between filter groups — now horizontal between stacked rows */
+        .gf-group-sep {
+            border-top: 2px solid #ced4da;
+            margin-top: 2px;
+            padding-top: 10px;
+            border-left: none;
+            margin-left: 0;
+            padding-left: 0;
+        }
+        /* ---- Commodities filter (div format, same as legend) ---- */
+        .gf-commodities-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            width: 100%;
+            margin-top: 4px;
+        }
+        .gf-dd-btn {
+            border: 1px solid #0070b6;
+            background: #f3f8fc;
+            color: #0070b6;
+            border-radius: 4px;
+            padding: 2px 10px;
+            font: 12px/16px Arial, Helvetica, sans-serif;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+        .gf-dd-btn:hover {
+            background: #0070b6;
+            color: #ffffff;
+        }
+        /* Each value: rectangular box with curved (pill) sides + check mark */
+        .grantee-filter label.gf-value {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0;
+            padding: 5px 14px;
+            border: 1px solid #0070b6;
+            border-radius: 999px;            /* curved sides (pill) */
+            background: #f3f8fc;
+            font: 13px/16px Arial, Helvetica, sans-serif;
+            color: #1a3c5e;
+            cursor: pointer;
+            user-select: none;
+        }
+        .grantee-filter label.gf-value input {
+            display: none;                     /* hide native checkbox */
+        }
+        .grantee-filter label.gf-value .gf-box {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            border: 1px solid #0070b6;
+            background: #ffffff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 12px;
+            line-height: 1;
+        }
+        .grantee-filter label.gf-value.checked {
+            background: #0070b6;
+            color: #ffffff;
+        }
+        .grantee-filter label.gf-value.checked .gf-box {
+            background: #ffffff;
+            border-color: #ffffff;
+            color: #0070b6;                     /* the check mark */
+        }
+        /* Right-panel list of organizations shown when hovering a cluster uses the shared .table style */
+        /* Each individual organization is wrapped in a bordered card so multiple orgs are clearly separated */
+        .org-card {
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-bottom: 10px;
+            background: #fff;
+        }
+        .org-card:last-child { margin-bottom: 0; }
+        .org-card .table { margin-bottom: 0; }
+        /* ---- Close (x) button for the right-column cards ---- */
+        .card { position: relative; }
+        .panel-close {
+            position: absolute;
+            top: 6px;
+            right: 8px;
+            cursor: pointer;
+            color: #0070b6;
+            font-weight: bold;
+            font-size: 18px;
+            line-height: 1;
+            border: none;
+            background: transparent;
+            padding: 2px 6px;
+            z-index: 5;
+        }
+        .panel-close:hover { color: #005a93; }
+
+        /* ---- Top mode switch: Overview vs Evolution ---- */
+        .map-mode-tabs {
+            position: fixed;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1002;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 4px;
+            display: flex;
+            gap: 8px;
+            box-shadow: none;
+        }
+        .mm-tab {
+            border: 1px solid #ced4da;
+            background: #ffffff;
+            color: #1a3c5e;
+            font: 13px/18px Arial, Helvetica, sans-serif;
+            font-weight: 600;
+            padding: 7px 16px;
+            border-radius: 999px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.18s, color 0.18s, border-color 0.18s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.22);
+        }
+        .mm-tab:hover { background: #e3eef6; }
+        .mm-tab.active {
+            background: #0070b6;
+            color: #ffffff;
+            border-color: #0070b6;
+            box-shadow: 0 1px 4px rgba(0,112,182,0.4);
+        }
+        /* hide evolution-specific UI by default */
+        body:not(.map-mode-evolution) #evolutionOverlay { display: none !important; }
+        body:not(.map-mode-evolution) #tab-evolution { display: none !important; }
+        body.map-mode-evolution #tab-aggregate { display: none !important; }
+
+        /* ---- Evolution timeline overlay (bottom centre of map) ---- */
+        #evolutionOverlay {
+            position: fixed;
+            left: 50%;
+            bottom: 18px;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(255,255,255,0.97);
+            border: 1px solid #0070b6;
+            border-radius: 10px;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.32);
+            padding: 12px 16px 10px;
+            width: min(720px, calc(100vw - 24px));
+            max-width: 720px;
+        }
+        #evolutionOverlay .ts-title {
+            font: bold 13px/16px Arial, Helvetica, sans-serif;
+            color: #0070b6;
+            text-align: center;
+            margin: 0 0 8px;
+        }
+        #evolutionOverlay .ts-subtitle {
+            font: 11px/14px Arial, Helvetica, sans-serif;
+            color: #5a6d80;
+            text-align: center;
+            margin: 0 0 10px;
+        }
+        .ts-range-wrap {
+            position: relative;
+            padding: 14px 10px 8px;
+        }
+        .ts-track {
+            position: relative;
+            height: 6px;
+            background: #e9ecef;
+            border-radius: 999px;
+        }
+        .ts-fill {
+            position: absolute;
+            top: 0; bottom: 0;
+            background: #0070b6;
+            border-radius: 999px;
+            pointer-events: none;
+        }
+        .ts-thumb {
+            position: absolute;
+            top: 50%;
+            width: 18px; height: 18px;
+            border-radius: 50%;
+            border: 2px solid #ffffff;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.45);
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            touch-action: none;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .ts-thumb.from { background: #0070b6; z-index: 3; }
+        .ts-thumb.to   { background: #e67e22; z-index: 3; }
+        .ts-thumb .ts-tip {
+            position: absolute;
+            bottom: calc(100% + 7px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a3c5e;
+            color: #ffffff;
+            font: 11px/14px Arial, Helvetica, sans-serif;
+            padding: 2px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+        .ts-thumb .ts-tip::after {
+            content: "";
+            position: absolute;
+            top: 100%; left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: #1a3c5e;
+        }
+        .ts-ticks {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 2px 0;
+            font: 11px/14px Arial, Helvetica, sans-serif;
+            color: #5a6d80;
+        }
+        .ts-ticks span.active { color: #0070b6; font-weight: bold; }
+        .ts-range-labels {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 6px;
+            font: 12px/14px Arial, Helvetica, sans-serif;
+            color: #1a3c5e;
+        }
+        .ts-range-labels strong { color: #0070b6; }
+        .ts-range-labels strong.to { color: #e67e22; }
+        .ts-controls {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        .ts-btn {
+            border: 1px solid #0070b6;
+            background: #ffffff;
+            color: #0070b6;
+            border-radius: 999px;
+            padding: 4px 14px;
+            font: 12px/16px Arial, Helvetica, sans-serif;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .ts-btn.primary { background: #0070b6; color: #ffffff; }
+        .ts-btn:hover { background: #e3eef6; }
+        .ts-btn.primary:hover { background: #005a93; }
+
+        /* ---- Evolution table inside rightPanel ---- */
+        #tab-evolution .evo-intro {
+            font: 12px/16px Arial, Helvetica, sans-serif;
+            color: #5a6d80;
+            margin: 0 0 10px;
+        }
+        .evo-table {
+            width: 100%;
+            border-collapse: collapse;
+            font: 12px/14px Arial, Helvetica, sans-serif;
+        }
+        .evo-table th {
+            text-align: left;
+            background: #f3f8fc;
+            color: #1a3c5e;
+            border: 1px solid #ced4da;
+            padding: 6px 6px;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+        .evo-table td {
+            border: 1px solid #ced4da;
+            padding: 6px 6px;
+            color: #1a3c5e;
+            background: #ffffff;
+        }
+        .evo-table tr.dimmed td { opacity: 0.42; }
+        .evo-table tr.in-range td { background: #eaf4fb; }
+        .evo-table td.num { text-align: right; white-space: nowrap; }
+        .evo-summary {
+            margin-top: 10px;
+            padding: 8px 10px;
+            background: #f3f8fc;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font: 12px/16px Arial, Helvetica, sans-serif;
+            color: #1a3c5e;
+        }
+        .evo-summary strong { color: #0070b6; }
+        .evo-note {
+            margin-top: 8px;
+            font: 11px/14px Arial, Helvetica, sans-serif;
+            color: #5a6d80;
+            font-style: italic;
+        }
+
+        /* #leftPanel — match .commodity-legend typography (reference: Arial 11px/13px #1a3c5e, header 12px #0070b6) */
+        #leftPanel, #leftPanel * { font-family: Arial, Helvetica, sans-serif; }
+        #leftPanel { font-size: 15px; line-height: 18px; color: #1a3c5e; }
+        #leftPanel .panel-header { font-size: 16px; line-height: 19px; }
+        #leftPanel table, #leftPanel table th, #leftPanel table td, #leftPanel label, #leftPanel input, #leftPanel select, #leftPanel button, #leftPanel .btn, #leftPanel .dataTables_wrapper, #leftPanel .dataTables_info, #leftPanel .dataTables_paginate { font-size: 15px; line-height: 18px; color: #1a3c5e; }
+        #leftPanel table th, #leftPanel table td { padding: 3px 5px; }
+        #leftPanel table th { font-weight: 600; }
+        #leftPanel .panel-content { flex: 1 1 auto; min-height: 0; }
+        /* the collapse tab is white-on-blue — keep it white, the panel font rule would darken it */
+        #leftPanel .panel-toggle-btn, #leftPanel .panel-toggle-btn * { color: #ffffff; }

@@ -626,7 +626,7 @@
     var clusters_Grantees = L.markerClusterGroup({
         showCoverageOnHover: true,   // needed so clustermouseover fires; polygon itself is suppressed below
         spiderfyOnMaxZoom: true,
-        maxClusterRadius: 50,
+        maxClusterRadius: 35,
         iconCreateFunction: function(cluster) {
             var n = cluster.getChildCount();
             return L.divIcon({

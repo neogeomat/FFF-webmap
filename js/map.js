@@ -45,6 +45,8 @@
     function setMapMode(mode) {
         var isEvo = mode === 'evolution';
         document.body.classList.toggle('map-mode-evolution', isEvo);
+        document.body.classList.toggle('map-mode-women', mode === 'women');
+        try { localStorage.setItem('fff.mapMode', mode); } catch (e) { /* private mode */ }
         document.querySelectorAll('.mm-tab').forEach(function(btn){
             var active = btn.getAttribute('data-mode') === mode;
             btn.classList.toggle('active', active);
@@ -298,6 +300,7 @@
                     var p = l.feature.properties;
                     var timeOk = true;
                     var isEvoMode = document.body.classList.contains('map-mode-evolution');
+                    var isWomenMode = document.body.classList.contains('map-mode-women');
                     if (isEvoMode && allowedOrgs) {
                         timeOk = !!allowedOrgs[String(p.S_N)];
                     }
@@ -305,7 +308,8 @@
                     var commOk = !hasCommFilter || (p.subcategories && p.subcategories.length ? p.subcategories.some(function(c){return !!checkedComm[c];}) : true);
                     var enterpriseOk = !hasEnterpriseFilter || (p.enterprise_classifications && p.enterprise_classifications.length ? p.enterprise_classifications.some(function(c){return !!checkedEnterprise[c];}) : true);
                     var orgOk = !hasOrgFilter || (p.organization_type ? !!checkedOrg[p.organization_type] : true);
-                    var show = timeOk && typeOk && commOk && enterpriseOk && orgOk;
+                    var womenOk = !isWomenMode || (p.women && p.women.length);
+                    var show = timeOk && typeOk && commOk && enterpriseOk && orgOk && womenOk;
                     if (show) { if (!clusters_Grantees.hasLayer(l)) clusters_Grantees.addLayer(l); }
                     else { if (clusters_Grantees.hasLayer(l)) clusters_Grantees.removeLayer(l); }
                 });
@@ -720,6 +724,8 @@
             try { if (typeof refreshCommodityIcons === 'function') refreshCommodityIcons(layer_Grantees); } catch(e){ console.warn('refresh icons failed', e); }
             // Build floating commodity legend (overlay on map)
             try { buildCommodityLegend(); } catch(e){ console.warn('legend build failed', e); }
+            // Restore the map mode chosen last visit - must run after features + p.women exist.
+            try { setMapMode(localStorage.getItem('fff.mapMode') || 'overview'); } catch (e) {}
         });
 
         // Suppress the default hover coverage polygon so only the bottom-panel list shows.

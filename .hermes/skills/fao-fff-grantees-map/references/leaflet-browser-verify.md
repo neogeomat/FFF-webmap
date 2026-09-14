@@ -139,6 +139,25 @@ Uncommitted work is exactly what makes this cheap: the working tree is the "now"
   and off the marker — exactly the safe spot, because the map click handler ignores marker/tooltip targets.
   Assert the resulting KIND (`#aggOverview` starts with `District — `), not the polygon name, which depends on
   where the pin happens to sit.
+- **Finding a SPECIFIC org's pin: click its row in the left list first.** A fresh load renders ~7-9 pins, so the
+  org you need is usually inside a cluster and off-screen; its `.org-tip-name` text does not exist in the DOM yet
+  and a tooltip-text search returns an empty list (reads as "org missing"). Click the org's row in `#dataTable`
+  (it centres the map on that org at z13), wait ~2s, then read the tooltip rects. Whole recipe, in one probe:
+  click the row → `[...document.querySelectorAll('.org-tip-name')].find(e => /name/i.test(e.textContent))` →
+  `page.mouse.click(rect.x + rect.width / 2 + 26, rect.y + rect.height + 20)` (the `+26` puts the click on the
+  polygon, not the marker). A district click AUTO-OPENS `#rightPanel`, which eats the right 340px — re-read rects
+  after every click instead of caching coordinates.
+- **`.org-tip-name` tooltips: do NOT filter them by `offsetParent`.** Leaflet parks tooltips in
+  `.leaflet-tooltip-pane` with absolute positioning, so `offsetParent` is `null` for every one of them and
+  `tips.filter(e => e.offsetParent !== null)` returns `[]` — looks exactly like "the pin is not on the map"
+  while it is sitting there. Read text + `getBoundingClientRect()` and filter by TEXT. The tooltip is anchored
+  ABOVE its marker (offset ~[0, -12]), so the marker centre is ≈ `tipRect.y + tipRect.height + 12`.
+- **Predict the scope offline instead of guessing which polygon a pin sits in.** The ray-casting check that
+  guards the simplified boundaries also answers "which district is this pin in":
+  `sys.path.insert(0, 'Webmap/tests'); from boundary_pip_check import districts, resolve` then
+  `resolve(districts('Webmap/data/District.geojson'), lon, lat)` (returns the `DISTRICT` value, e.g.
+  `KABHREPALANCHOK`). Use it to build the expected scope/labels before touching the browser, and to count the
+  distinct `municipality` strings a scope click should produce.
 
 ## Verifying the Grantees layer (single source: the geocsv)
 The grantee layer is built inside `layer_Grantees.on('data:loaded', ...)`, so `window.layer_Grantees`

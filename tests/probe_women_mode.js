@@ -64,7 +64,6 @@ const { chromium } = require('playwright');
   ok('visible tooltip names all women-led', stray.length === 0, JSON.stringify(stray));
 
   // composition: clearing the commodity pills must hide everything, never resurrect a non-women org
-  await p.evaluate(() => { const t = document.getElementById('filterToggle'); if (t && document.getElementById('granteeFilterBar').classList.contains('collapsed')) t.click(); });
   await p.waitForTimeout(500);
   const before = await shown();
   await p.evaluate(() => document.getElementById('commClear').click());

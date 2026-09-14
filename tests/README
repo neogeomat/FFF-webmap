@@ -23,6 +23,7 @@ Run
     node tests/probe_women_mode.js       # Women-Led mode shows exactly the 13 geocoded women-led orgs
     node tests/probe_mode_exclusive.js   # overview / evolution / women modes are mutually exclusive
     node tests/probe_scope_full.js       # polygon-click aggregates: PIP precedence, national totals
+    node tests/probe_sankey_pip.js       # sankey province/palika come from PIP (no bare state codes, wards merged)
     node tests/probe_legend_pie.js       # legend placement + LoA/DBG pie & bar colours
     node tests/probe_evo_amount.js       # evolution grant-amount column adds up to the national total
     node tests/probe_evo_fit.js          # the evolution table fits inside the 340px panel

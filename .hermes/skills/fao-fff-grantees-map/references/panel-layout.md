@@ -75,12 +75,13 @@ One shared `<div class="info-hover-popup">` appended to `body`, reused for every
   - `showHoverPopup(html)` sets `innerHTML`, `display:block`, and positions top-right of the
     viewport clear of panels: `top=90; left = map.getSize().x - hoverPopup.offsetWidth - 20`.
   - `hideHoverPopup()` sets `display:none` + clears `innerHTML`.
-- Wiring:
-  - point `mouseover` (`pop_Grantees`): `highlightFeature(e); showHoverPopup(bio_table_generator(e.target.feature));`
+- Wiring (both hover paths are POPUP ONLY — user rule: they must not write `#aggregate`):
+  - point `mouseover` (`pop_Grantees`): `showHoverPopup(bio_table_generator(e.target.feature), e.target.getLatLng());`
     `mouseout`: `hideHoverPopup();` then reset style.
-  - cluster `clustermouseover`: `var html = clusterOrgCardsHTML(e.layer); aggregate.innerHTML = html; showHoverPopup(html);`
+  - cluster `clustermouseover`: `showHoverPopup(clusterOrgCardsHTML(e.layer), e.layer.getBounds().getCenter());`
     `clustermouseout`: `hideHoverPopup();`
-- Key invariant: popup reuses the SAME html as `#aggregate`, so they never diverge.
+- Key invariant: the popup renders the same CARD HTML the panel would (`bio_table_generator` /
+  `clusterOrgCardsHTML`), but the panel itself is written only by the boundary CLICK handler.
 
 ## Verify over HTTP (headless Playwright harness)
 Serve: `python3 -m http.server 6115 --directory Webmap`, then drive it from `~/pw-check` with Playwright

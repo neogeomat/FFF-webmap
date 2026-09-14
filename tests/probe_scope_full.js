@@ -31,6 +31,10 @@ const { chromium } = require('playwright');
   ok('national bar has commodities', national.bar.labels.length >= 8, JSON.stringify(national.bar.labels.slice(0, 3)) + '…');
   ok('sankey rendered (nodes+links)', national.sankey.rects >= 4 && national.sankey.links >= 3, JSON.stringify({ rects: national.sankey.rects, links: national.sankey.links }));
   ok('sankey root is FFF', national.sankey.labels.some(t => /^FFF \(36\)/.test(t)), JSON.stringify(national.sankey.labels.slice(0, 4)));
+  // Province names come from point-in-polygon: Province.geojson stores 3 provinces as bare STATE_CODE
+  // numbers, so a regression shows up as a node called "2" or "5" instead of Madhesh / Lumbini.
+  ok('sankey provinces are names, not state codes', !national.sankey.labels.some(t => /^[1-7] \(\d+\)$/.test(t)), JSON.stringify(national.sankey.labels.filter(t => /^\(?\d/.test(t))));
+  ok('every marker resolved to a province (no Unassigned)', !national.sankey.labels.some(t => /^Unassigned \(/.test(t)), '');
 
   // Authoritative totals (previously carried by data/investment_by_enterprise.json, since deleted):
   // the page must reproduce them from the geocsv alone.
@@ -71,8 +75,6 @@ const { chromium } = require('playwright');
 
   // --- province scope: turn the District pill off, click the same point ---
   await p.evaluate(() => {
-    const bar = document.getElementById('granteeFilterBar');
-    if (bar.classList.contains('collapsed')) document.getElementById('filterToggle').click();
     const cb = Array.from(document.querySelectorAll('.gf-boundary')).find(c => c.dataset.layer === 'layer_District');
     if (cb && cb.checked) cb.closest('label.gf-value').click();
   });

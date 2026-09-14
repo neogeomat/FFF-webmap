@@ -15,7 +15,6 @@
     <link href="css/all.min.css" rel="stylesheet" type="text/css">
 
     <!-- Page level plugin CSS-->
-    <link href="css/dataTables.bootstrap4.css" rel="stylesheet">
 
     <!-- Custom styles for this template-->
     <link href="css/sb-admin.css" rel="stylesheet">
@@ -31,9 +30,7 @@
     
     <!-- Non-critical scripts deferred for faster initial render -->
     <script defer src="js/bootstrap.bundle.min.js"></script>
-    <script defer src="js/jquery.dataTables.js"></script>
-    <script defer src="js/dataTables.bootstrap4.js"></script>
-    <script defer src="js/leaflet-hash.js"></script>
+        <script defer src="js/leaflet-hash.js"></script>
     <!-- ponytail: dropped 9 plugins nothing references (search/timeline-slider/labelgun+rbush/
          Autolinker/labels.js/pattern/rotatedMarker/qgis2web_expressions + their CSS).
          Re-add from the qgis2web export if a future feature needs one. -->
@@ -57,12 +54,6 @@
         <button class="mm-tab" data-mode="evolution" type="button">Evolution of FFF Support — “Eight Years of FFF”</button>
         <button class="mm-tab" data-mode="women" type="button">Women-Led Enterprises</button>
     </nav>
-
-    <!-- Filters below tabs (collapsible, collapsed by default) -->
-    <div class="filter-bar-wrap" id="filterBarWrap">
-        <button class="filter-toggle" id="filterToggle" type="button" aria-expanded="false" aria-controls="granteeFilterBar">Filters ▾</button>
-        <div id="granteeFilterBar" class="grantee-filter collapsed"></div>
-    </div>
 
     <!-- Full-screen map -->
     <div id="map"></div>
@@ -92,16 +83,14 @@
         </div>
     </div>
 
-    <!-- Left Panel (Grantees list) -->
+    <!-- Left Panel (Layers: boundary toggles + the filter pills; the old grantee DataTable is gone) -->
     <div id="leftPanel" class="map-panel left-panel collapsed">
-        <button class="panel-toggle-btn" id="leftPanelToggle" onclick="togglePanel('leftPanel')" title="Toggle Grantees List">
-            <span id="leftPanelArrow">›</span> <span class="gf-label">Grantees</span>
+        <button class="panel-toggle-btn" id="leftPanelToggle" onclick="togglePanel('leftPanel')" title="Toggle Layers">
+            <span id="leftPanelArrow">›</span> <span class="gf-label">Layers</span>
         </button>
         <div class="panel-content">
-            <div class="panel-header">Grantees List</div>
-            <div class="table-responsive">
-                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0"></table>
-            </div>
+            <div class="panel-header">Layers</div>
+            <div id="granteeFilterBar" class="grantee-filter"></div>
         </div>
     </div>
 
@@ -114,6 +103,12 @@
             <div class="panel-header">Details</div>
             <div id="aggregate">
                 <p class="text-muted mb-0">Click a boundary (country / province / district) to see an overview.</p>
+            </div>
+            <!-- ponytail: the sankey lives here, not in the right panel - the bottom strip is wide (620px+
+                 instead of 310px) and stays visible in evolution mode, where the flow is still meaningful. -->
+            <div class="sankey-row">
+                <div class="sankey-wrap"><strong>Grant flow by amount (USD)</strong><svg id="chartSankeyAmount"></svg></div>
+                <div class="sankey-wrap"><strong>Grant flow by organizations</strong><svg id="chartSankey"></svg></div>
             </div>
         </div>
     </div>
@@ -131,7 +126,6 @@
                 <div><strong>Type of Grant (bar)</strong><canvas id="chartTypeBar"></canvas></div>
                 <div><strong>Commodities (bar)</strong><canvas id="chartBar"></canvas></div>
                 <div><strong>Investment by enterprise (USD)</strong><canvas id="chartInvestment"></canvas></div>
-                <div class="sankey-wrap"><strong>Grant flow (sankey)</strong><svg id="chartSankey"></svg></div>
                 <div class="panel-header" style="margin-top: 15px;">Data Table</div>
                 <table class="table table-bordered" id="mainTable" width="100%" cellspacing="0"></table>
             </div>

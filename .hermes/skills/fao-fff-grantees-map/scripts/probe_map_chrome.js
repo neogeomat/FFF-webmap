@@ -1,12 +1,12 @@
-// Probe the map's startup chrome and the zoom-driven basemap swap.
+// Probe the map's startup chrome, the zoom-driven basemap swap and the Layers panel's filters.
 //   cd <repo> && python3 -m http.server 6115 --directory Webmap
 //   cp ~/.hermes/skills/web-mapping/fao-fff-grantees-map/scripts/probe_map_chrome.js ~/pw-check/
 //   cd ~/pw-check && node probe_map_chrome.js
-// Exits non-zero on a page error or a failed assertion. Config via env: BASE, SEARCH.
+// Exits non-zero on a page error or a failed assertion. Config via env: BASE, DISTRICT.
 const { chromium } = require('playwright');
 
 const BASE = process.env.BASE || 'http://localhost:6115';
-const SEARCH = process.env.SEARCH || 'AFFON';   // any org WITH geometry (appears in the left DataTable)
+const DISTRICT = process.env.DISTRICT || 'KABHREPALANCHOK';  // polygon used as the z13 anchor
 
 const failures = [];
 const check = (name, ok, detail) => {
@@ -20,7 +20,7 @@ const check = (name, ok, detail) => {
   const errs = [];
   page.on('pageerror', e => errs.push('PAGEERROR ' + e.message));
   await page.goto(BASE, { waitUntil: 'networkidle', timeout: 60000 });
-  await page.waitForSelector('.grantee-cluster', { timeout: 30000 });
+  await page.waitForSelector('.grantee-cluster, .org-pin-wrap', { timeout: 30000 });
   await page.waitForTimeout(5000);
 
   // one snapshot: tiles + switcher radio + boundary path counts + the pill states
@@ -35,17 +35,7 @@ const check = (name, ok, detail) => {
       province: (document.querySelector('.leaflet-pane_Province-pane') || { querySelectorAll: () => [] }).querySelectorAll('path').length,
       localLevel: (document.querySelector('.leaflet-pane_LocalLevel-pane') || { querySelectorAll: () => [] }).querySelectorAll('path').length
     },
-    nearestPinToCentre: (function () {
-      const m = document.getElementById('map').getBoundingClientRect();
-      const cx = m.left + m.width / 2, cy = m.top + m.height / 2;
-      let best = null;
-      document.querySelectorAll('.org-pin-wrap').forEach(el => {
-        const r = el.getBoundingClientRect(); if (!r.width) return;
-        const d = Math.hypot(r.left + r.width / 2 - cx, r.top + r.height / 2 - cy);
-        if (best === null || d < best) best = Math.round(d);
-      });
-      return best;
-    })()
+    markers: document.querySelectorAll('.org-pin-wrap, .grantee-cluster').length
   }));
 
   // --- startup: plain light-green canvas, District/Province drawn, Local Level off
@@ -56,19 +46,22 @@ const check = (name, ok, detail) => {
         start.paths.district === 77 && start.paths.province === 7 && start.paths.localLevel === 0, start.paths);
   check('startup: switcher radio = No background', /No background/i.test(start.radio || ''), start.radio);
 
-  // --- anchor: the left-panel row click lands on a KNOWN zoom (z13), where the satellite is already on
-  await page.evaluate(() => document.querySelectorAll('#leftPanel .panel-toggle-btn')
-    .forEach(b => { if (b.closest('.map-panel').classList.contains('collapsed')) b.click(); }));
-  await page.waitForTimeout(900);
-  await page.fill('#leftPanel .dataTables_filter input', SEARCH);
-  await page.waitForTimeout(800);
-  await page.evaluate(() => {
-    const r = document.querySelector('#leftPanel tbody tr');
-    if (r && !r.querySelector('.dataTables_empty')) r.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  });
+  // --- anchor: a district polygon centre at z13. The left-panel list and its row-click zoom were removed,
+  // so drive the map through the boundary layer every build exposes (a layer instance always has _map).
+  const anchored = await page.evaluate((district) => {
+    let hit = null;
+    window.layer_District.eachLayer(l => {
+      if (!hit && new RegExp(district, 'i').test((l.feature.properties || {}).DISTRICT || '')) hit = l;
+    });
+    if (!hit) return null;
+    const c = hit.getBounds().getCenter();
+    window.layer_District._map.setView(c, 13);
+    return { lat: c.lat, lng: c.lng };
+  }, DISTRICT);
+  check('anchor: district polygon found and centred at z13', !!anchored, anchored);
   await page.waitForTimeout(3200);
   const anchor = await snap();
-  check('row click centres its pin (nearest pin to map centre <= 40px)', anchor.nearestPinToCentre !== null && anchor.nearestPinToCentre <= 40, anchor.nearestPinToCentre);
+  check('anchor: markers still render at z13', anchor.markers > 0, anchor.markers);
   check('at the z13 anchor the satellite is on (tiles > 0)', anchor.tiles > 0, anchor.tiles);
   check('at the z13 anchor the radio says Satellite', /Satellite/i.test(anchor.radio || ''), anchor.radio);
 
@@ -85,25 +78,40 @@ const check = (name, ok, detail) => {
   const back = await snap();
   check('zooming back in returns the satellite', back.tiles > 0, back.tiles);
 
-  // --- filter bar collapses on a click OUTSIDE its box, stays open for a pill inside it
-  const barState = () => page.evaluate(() => {
-    const bar = document.getElementById('granteeFilterBar');
-    return { collapsed: bar.classList.contains('collapsed'), label: document.getElementById('filterToggle').textContent.trim() };
+  // --- the filters live INSIDE the collapsed left "Layers" panel (the floating bar + #filterToggle are gone);
+  //     the panel's own toggle is the only show/hide.
+  const panelState = () => page.evaluate(() => ({
+    collapsed: document.getElementById('leftPanel').classList.contains('collapsed'),
+    filtersInside: !!document.querySelector('#leftPanel .panel-content #granteeFilterBar'),
+    title: (document.querySelector('#leftPanel .panel-header') || {}).textContent ?
+           document.querySelector('#leftPanel .panel-header').textContent.trim() : null
+  }));
+  const p0 = await panelState();
+  check('startup: the left panel is collapsed', p0.collapsed === true, p0);
+  check('the filters live inside the Layers panel', p0.filtersInside === true, p0);
+  check('the left panel is titled Layers', p0.title === 'Layers', p0.title);
+  await page.evaluate(() => document.querySelector('#leftPanel .panel-toggle-btn').click());
+  await page.waitForTimeout(900);
+  check('the panel toggle opens it', (await panelState()).collapsed === false);
+
+  // --- a pill still filters. Count MEMBERS (pins + the numbers inside cluster labels): orgs absorbed into an
+  //     existing cluster leave the icon count unchanged, so icons alone read as "the filter does nothing".
+  const members = () => page.evaluate(() => {
+    let n = document.querySelectorAll('.org-pin-wrap').length;
+    document.querySelectorAll('.grantee-cluster').forEach(c => {
+      const m = (c.innerText || '').match(/\d+/);
+      if (m) n += parseInt(m[0], 10);
+    });
+    return n;
   });
-  if ((await barState()).collapsed) { await page.click('#filterToggle'); await page.waitForTimeout(700); }
-  check('filter bar opens on the toggle', !(await barState()).collapsed, (await barState()).label);
-  await page.evaluate(() => { const l = document.querySelector('#granteeFilterBar .gf-value'); if (l) l.click(); });
-  await page.waitForTimeout(500);
-  check('clicking a PILL keeps the bar open', !(await barState()).collapsed, (await barState()).label);
-  const box = await page.evaluate(() => { const r = document.getElementById('granteeFilterBar').getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
-  // pick a point that is provably outside the bar: an expanded bar covers ~700x364 at top-centre,
-  // so a naive "empty map" click can land on a pill and read as a broken handler
-  const x = Math.round(Math.min(box.x, box.x + box.w) - 40);
-  const y = Math.round(box.y + box.h + 120);
-  await page.mouse.click(x, y);
-  await page.waitForTimeout(800);
-  const closed = await barState();
-  check('click outside (' + x + ',' + y + ') collapses the bar', closed.collapsed, closed.label);
+  const before = await members();
+  await page.evaluate(() => { const l = document.querySelector('#leftPanel .gf-type label.gf-value'); if (l) l.click(); });
+  await page.waitForTimeout(1600);
+  const after = await members();
+  check('unchecking a Type pill filters members (' + before + ' -> ' + after + ')', before > 0 && after < before, { before, after });
+  await page.evaluate(() => { const l = document.querySelector('#leftPanel .gf-type label.gf-value'); if (l) l.click(); });
+  await page.waitForTimeout(1200);
+  check('re-checking the pill restores every member', (await members()) === before, { before, now: await members() });
 
   check('no page errors', errs.length === 0, errs);
   await browser.close();

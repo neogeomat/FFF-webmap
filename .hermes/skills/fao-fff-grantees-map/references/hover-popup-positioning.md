@@ -116,18 +116,15 @@ the user asks for sticky state.
 
 ## Wire into the async handlers (inside `layer_Grantees.on('data:loaded', …)`)
 ```js
-// individual marker (pop_Grantees / onEachFeature)
+// individual marker (pop_Grantees / onEachFeature) — hover is POPUP ONLY, never the bottom panel
 mouseover: function(e) {
-    highlightFeature(e);
     showHoverPopup(bio_table_generator(e.target.feature), e.target.getLatLng());
 },
 mouseout: function(e) { hideHoverPopup(); /* + resetStyle(e.target) */ }
 
-// cluster (clusters_Grantees)
+// cluster (clusters_Grantees) — same rule: no #aggregate write on hover
 clusters_Grantees.on('clustermouseover', function(e) {
-    var html = clusterOrgCardsHTML(e.layer);
-    L.DomUtil.get('aggregate').innerHTML = html;
-    showHoverPopup(html, e.layer.getBounds().getCenter());
+    showHoverPopup(clusterOrgCardsHTML(e.layer), e.layer.getBounds().getCenter());
 });
 clusters_Grantees.on('clustermouseout', function(e) { hideHoverPopup(); });
 ```

@@ -78,6 +78,64 @@ const ok = (n, c, d) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (d ? '   ' +
   }));
   ok('scope click updates the type charts', /^District|^Province|^Local Level/.test(sc.overview) && sc.pie.reduce((a, x) => a + x, 0) < 36, JSON.stringify(sc));
 
+  // 8. the Layers panel wears the legend's tokens (fonts/colours/chips), not its own theme
+  const styleMatch = await p.evaluate(() => {
+    const cs = el => getComputedStyle(el);
+    const props = ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'color', 'backgroundColor', 'borderTopColor', 'borderTopWidth', 'borderRadius', 'padding', 'opacity', 'boxShadow'];
+    const pick = el => { const c = cs(el), o = {}; props.forEach(k => o[k] = c[k]); return o; };
+    // the panel deliberately runs ~2px larger than the legend (user: "make the texts in layer panel a bit
+    // bigger"), so size/geometry are excluded and compared by the dedicated assertion below.
+    const SIZE = /^(fontSize|lineHeight|padding)$/;
+    const diff = (a, b) => props.filter(k => !SIZE.test(k) && a[k] !== b[k]).map(k => k + ': ' + a[k] + ' vs ' + b[k]);
+    const q = s => document.querySelector(s);
+    const pillU = [...document.querySelectorAll('#leftPanel label.gf-value')].find(l => !l.classList.contains('checked'));
+    const itemU = [...document.querySelectorAll('.commodity-legend-item')].find(l => !l.classList.contains('checked'));
+    // the legend only paints an OFF chip when a commodity is deselected; without one, the state-driven
+    // properties are masked out and the shape/font values are still checked.
+    const offPair = itemU ? diff(pick(pillU), pick(itemU))
+                          : diff(pick(pillU), pick(q('.commodity-legend-item'))).filter(d => !/^(color|backgroundColor|borderTopColor|opacity|boxShadow)/.test(d));
+    const pillC = q('#leftPanel label.gf-value.checked');
+    const px = el => parseFloat(cs(el).fontSize);
+    return {
+      sizes: { panelBody: px(q('#leftPanel')), legendBody: px(q('#commodityLegend')),
+               panelHeader: px(q('#leftPanel .panel-header')), legendHeader: px(q('.legend-header')),
+               panelPill: px(q('#leftPanel label.gf-value')), legendPill: px(q('.commodity-legend-item')),
+               panelTitle: px(q('#leftPanel .gf-title')), legendTitle: px(q('.legend-section-header')) },
+      container: diff(pick(q('#leftPanel')), pick(q('#commodityLegend'))).filter(d => !/width|height/.test(d)),
+      header: diff(pick(q('#leftPanel .panel-header')), pick(q('.legend-header'))),
+      section: diff(pick(q('#leftPanel .gf-title')), pick(q('.legend-section-header'))),
+      pill: pillU ? offPair : ['no panel pill to compare'],
+      checked: pillC ? { bg: cs(pillC).backgroundColor, color: cs(pillC).color } : null
+    };
+  });
+  const sz = styleMatch.sizes;
+  ok('panel text is bigger than the legend text (user request)', sz.panelBody > sz.legendBody && sz.panelHeader > sz.legendHeader && sz.panelPill > sz.legendPill && sz.panelTitle > sz.legendTitle, JSON.stringify(sz));
+  ok('panel card matches the legend card', styleMatch.container.length === 0, JSON.stringify(styleMatch.container));
+  ok('panel header matches the legend header', styleMatch.header.length === 0, JSON.stringify(styleMatch.header));
+  ok('section titles match the legend section titles', styleMatch.section.length === 0, JSON.stringify(styleMatch.section));
+  ok('filter pills match the legend items', styleMatch.pill.length === 0, JSON.stringify(styleMatch.pill));
+  ok('checked pill keeps the blue chip (white text)', !!styleMatch.checked && styleMatch.checked.bg === 'rgb(0, 112, 182)' && styleMatch.checked.color === 'rgb(255, 255, 255)', JSON.stringify(styleMatch.checked));
+
+  // 9. one entry per line, no entry wrapping to a second line
+  const rows = await p.evaluate(() => {
+    const out = [];
+    document.querySelectorAll('#leftPanel .gf-group, #leftPanel .gf-commodities-list').forEach(g => {
+      const pills = [...g.querySelectorAll('label.gf-value')];
+      if (!pills.length) return;
+      const ys = pills.map(l => Math.round(l.getBoundingClientRect().y));
+      const widths = pills.map(l => Math.round(l.getBoundingClientRect().width));
+      const wrapped = pills.filter(l => {
+        const r = document.createRange(); r.selectNodeContents(l);
+        // each inline fragment sits on `top`; >1 distinct top band = the text wrapped
+        return new Set([...r.getClientRects()].filter(x => x.height > 6).map(x => Math.round(x.top / 8))).size > 1;
+      });
+      out.push({ n: pills.length, rows: new Set(ys).size, equalWidth: new Set(widths).size === 1, wrapped: wrapped.length, first: pills[0].innerText.replace(/\s+/g, ' ').trim().slice(0, 24) });
+    });
+    return out;
+  });
+  ok('every filter entry has its own row', rows.every(r => r.rows === r.n), JSON.stringify(rows.filter(r => r.rows !== r.n)));
+  ok('entries are uniform width and none wraps', rows.every(r => r.equalWidth && r.wrapped === 0), JSON.stringify(rows.filter(r => !r.equalWidth || r.wrapped)));
+
   ok('no page errors', errs.length === 0, JSON.stringify(errs.slice(0, 3)));
   await p.evaluate(() => { document.querySelector('#rightPanel .panel-content').scrollTop = 0; });
   await p.screenshot({ path: '/tmp/legend_pie.png' });

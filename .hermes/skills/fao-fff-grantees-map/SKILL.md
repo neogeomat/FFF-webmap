@@ -10,6 +10,10 @@ Trigger skill for editing the FAO FFF Nepal grantees Leaflet map at `/home/ubent
 **Standing rules:** prove every UI change in a browser over HTTP before reporting done; leave edits
 UNCOMMITTED and report the touched paths — commit only when the user explicitly says so. Other agents
 edit this repo concurrently, so a dirty working tree can be swept into someone else's commit.
+**Undo:** an app- or chat-level undo does NOT touch files — start with `git status` and say plainly what is
+still on disk. When the tree holds several logical changes stacked on one commit, `git checkout` / `git reset`
+can only restore a WHOLE file, so ask which scope the user means (last change vs everything) and otherwise
+hand-reverse the specific edits; never reset the tree to satisfy "undo" without confirming the scope.
 **Describe a proposed check by what it ASSERTS and how** (tool + assertion + the failure it catches), never
 by artifact name alone — a plan line like "a new probe_x.js" comes straight back as "what do you mean by
 that", and the round-trip costs more than the sentence.
@@ -97,17 +101,15 @@ loader instead of "restoring" the plugin.
 Because the load is async, every piece of UI that depends on the grantee features MUST be built
 inside `layer_Grantees.on('data:loaded', function(){ ... })`:
 - `clusters_Grantees.addLayer(layer_Grantees)` + `addTo(map)` + `setBounds()`
-- the `clustermouseover` hover table
-- the Type-of-Grant filter pills (`buildGranteeTypeFilter()`)
-- the left-panel DataTable (`buildGranteeTable()`) — its row-click handler fills the Details card AND
-  zooms the map to the org with ONE deterministic call: capture the Leaflet layer in the same `eachLayer`
-  lookup, then `if (layer) { map.setView(layer.getLatLng(), Math.max(map.getZoom(), 13)); }`.
-  **Do NOT use `clusters_Grantees.zoomToShowLayer(layer, cb)`** with a `setView` inside the callback: that
-  pair races (the callback can fire mid-animation and re-clustering re-absorbs the pin), so the view
-  settled 0–126px off-centre depending on load timing — the same click gave different results on different
-  loads. Landing on a cluster icon at z13 is fine; the user clicks it to fan the members out.
-  `map` and `clusters_Grantees` are declared earlier in the same closure as this handler (`js/map.js`) — never use
-  `window.map`, that is the `<div id="map">` element, not the Leaflet instance.
+- the `clustermouseover` / marker `mouseover` hover popups (popup only — they must NOT write `#aggregate`)
+- the Type-of-Grant filter pills (`buildGranteeFilters()` — they render INSIDE the left "Layers" panel)
+- ~~the left-panel DataTable + row-click zoom~~ — REMOVED at the user's request (see "Left panel = the Layers
+  panel" below). The old lesson still bites if anyone re-adds a zoom-to-org control: prefer ONE
+  `map.setView(layer.getLatLng(), Math.max(map.getZoom(), 13))` and never
+  `clusters_Grantees.zoomToShowLayer(layer, cb)` + `setView` in the callback, which races (the callback fires
+  mid-animation, re-clustering re-absorbs the pin, same click lands 0–126px off-centre).
+  `map` / `clusters_Grantees` live in the closure — `window.map` is the `<div id="map">` element, not the
+  Leaflet instance.
 Define those as function declarations (hoisted) so they are callable from the callback. Do NOT
 iterate `layer_Grantees.eachLayer(...)` synchronously at top level — it runs before the features
 exist and silently yields an empty map.
@@ -220,7 +222,7 @@ does not exist, which makes `invalidateSize()` helpers throw on every panel togg
 hold instead: `(window.layer_Nepal && window.layer_Nepal._map) || (window.clusters_Grantees && window.clusters_Grantees._map)`.
 
 **The zoom LEVEL is not readable from a probe either** (same closure), so never assume it: anchor on an
-action whose zoom you control — the left-panel row click lands on exactly `z13` — then step the map ±1
+action whose zoom you control — `window.layer_District._map.setView(latlng, 13)` is exact — then step the map ±1
 with `.leaflet-control-zoom-in/-out` and assert the behaviour flips one step BELOW the anchor and back
 one step ABOVE it. Read the two observables that ARE in the DOM: `img.leaflet-tile` count and the
 `.leaflet-control-layers-base input:checked` radio. Assert both directions (in and out) — a one-way
@@ -232,6 +234,16 @@ undefined in the current build, so a probe that reaches for `._map` throws inste
 map. When you need the map (or an unclustered pin) and no global exposes it, drive the DOM: dispatch
 clicks on `.grantee-cluster` until `.org-pin-wrap` appears (recipe in
 `references/leaflet-browser-verify.md`).
+
+**Boundary layers ARE exposed — use them as the stable anchor.** The `specs` array sets
+`window.layer_<Name>` for every boundary, so `window.layer_District._map` is a guaranteed map instance and
+`layer_District.eachLayer(l => …)` a reliable polygon lookup (`getBounds().getCenter()` gives a latlng,
+`_map.setView(center, 13)` a reproducible z13 anchor). Prefer that over the grantee globals above.
+**Whenever you DELETE a UI affordance, grep the probe tree for it before running anything**
+(`grep -rn 'dataTable\|filterToggle\|filter-bar-wrap' tests/ scripts/`) and rewrite those probes onto the
+layer anchor — a probe that throws after a deletion reads as a regression in the deletion, and the cheap
+wrong fix is to restore the UI you just removed. When the grantee DataTable went away that meant
+`window.layer_District._map.setView(…, 13)` plus a click at the viewport centre instead of the old list row.
 
 ## Map modes (the `#mapModeTabs` view tabs)
 `#mapModeTabs` holds one `.mm-tab[data-mode]` button per view; `setMapMode(mode)` toggles the
@@ -291,7 +303,12 @@ the metric before encoding it as a size or a total.
    position**. Editing these CRLF files with a patch tool: never put a `'\r'` escape inside a replacement
    string — it lands in the file as a REAL CR, splitting the literal across two lines (`node --check`
    catches it, an editor may not); write `String.fromCharCode(13)` instead, and re-run
-   `node --check js/map.js` after every patch batch.
+   `node --check js/map.js` after every patch batch. Line endings also DIFFER per file — `index.html` is LF,
+   `js/map.js` and `css/map.css` are CRLF (`head -3 <file> | cat -A` shows it) — so a MULTI-line `old_string`
+   frequently refuses to match in the CRLF files. Do not re-send it: either patch single-line anchors one at a
+   time (each `old_string` ends with its own newline) or join the block with explicit `\r\n` in the old_string
+   (the fuzzy matcher absorbs whitespace, not line-ending runs). Deleting a whole dead function/callback block
+   is the same problem — build the CRLF-joined old_string and replace it with `""`.
 2. Serve over HTTP — `python3 -m http.server 6115 --directory Webmap` → `http://localhost:6115`.
    Check `ss -ltnp | grep 6115` first: a stale `http.server` from an earlier session keeps the
    port and serves the OLD copy (your edit looks missing, data URLs 404). **Never verify
@@ -320,11 +337,25 @@ the metric before encoding it as a size or a total.
    **A failing probe is guilty until proven innocent — validate the probe before touching app code.**
    Three false negatives in one session, all measuring the wrong thing: hovering the *tooltip* instead of
    its marker (measure `getBoundingClientRect()` of the element you actually meant and print its
-   class/tag); an "outside click" at a coordinate that landed on a pill INSIDE the expanded filter bar
-   (dump the click's `e.target` first); and selecting a list row by searching a term that matched nothing,
-   which clicked the "No matching records found" placeholder row (guard with `.dataTables_empty`, and note
-   the app itself needed the same guard). Print the DOM you measured — if the code and the probe disagree,
+   class/tag); an "outside click" at a coordinate that landed on a filter pill (the bar used to collapse on
+   outside clicks; dump the click's `e.target` first); and a list row selected by a search term that matched
+   nothing (the old DataTable's "No matching records found" placeholder row — a reminder to assert the row you
+   actually wanted), and a filtered-org count taken from `.org-pin-wrap` / `.grantee-cluster` ICONS — removing
+   orgs that live inside an existing cluster leaves the icon count identical (measured 17 before and after), so
+   count MEMBERS instead: pins + the numbers inside every cluster label must equal the orgs that pass the
+   filter. Print the DOM you measured — if the code and the probe disagree,
    the probe is the cheaper suspect.
+
+   **Sweeping layout/option variants? Add a TEMPORARY runtime config hook, and re-render through a path that
+   does NOT change the data.** `var CFG = window.__someCfg || {}` read by the render function lets ONE browser
+   session measure every variant (`{h: 460}`, `{cap: 8}`, `{it: 32}`) with no file edit between passes — then
+   bake the winner into the code and delete the hook. Force the re-render through an exported entry point
+   (`window._evoApplyFilter()` redraws the aggregates from the SAME markers); driving a data filter to force
+   re-renders invalidates the whole sweep — stepping the year slider narrowed the set on every pass, so link
+   counts fell 23 → 6 and each row of the table measured a different chart. Two further traps: keep every
+   variant's data identical (print the denominator — link/node count — next to the metric), and compare SVG
+   geometry in ONE coordinate system (`path.getPointAtLength()` is USER UNITS, `getBoundingClientRect()` on a
+   node is screen px; mixing them matches no nodes and prints `? -> ?`).
 
 3. Confirm it rendered (see `references/leaflet-browser-verify.md`): layout fill ~full;
    overlay path counts per pane (District 77 / Local Level 33 / Province 7 / Chure 1 / Nepal 1 — toggle the
@@ -340,6 +371,24 @@ the metric before encoding it as a size or a total.
    size and check it is in the thousands before believing the render. Then check the CONTENT the same way you
    check code: extract every filename the diagram names and `ls` it — a generated flow invents plausible
    siblings (`Grantees.combined.csvt`, a `.vrt`), and a diagram is documentation the next reader trusts.
+
+## Committing and pushing this repo
+- Push `origin` explicitly (`git push origin main` → `github.com/neogeomat/FFF-webmap`, GitHub Pages serves the
+  repo root); the second remote `amritkarma.kll` is never the target.
+- **A commit that adds or changes `.github/workflows/*` is REJECTED over HTTPS**:
+  `! [remote rejected] main -> main (refusing to allow an OAuth App to create or update workflow
+  `.github/workflows/verify.yml` without `workflow` scope)`. The committed work is fine — push the same branch
+  over SSH instead (`git push git@github.com:neogeomat/FFF-webmap.git main`); SSH keys carry no OAuth scopes, so
+  this works with the account's existing key and needs no token change. Alternative if HTTPS must stay:
+  `gh auth refresh -h github.com -s workflow`. The tracking ref updates on the next fetch.
+- Verify the push landed and the pipeline ran: `git ls-remote --heads origin main` (SHA == local HEAD) and
+  `gh run list --limit 3` — the `verify` Action should go `completed/success` (~2 min) alongside a
+  `pages-build-deployment` run. `gh run watch <id> --exit-status` blocks until the verdict.
+- **Scan the staged list before committing** (`git diff --cached --name-only`): `git add -A` sweeps in
+  LibreOffice lockfiles (`data/.~lock.*#`), which are NOT gitignored here. `git rm --cached` the junk, delete
+  the file, else it ships.
+- Confirm the deploy by size, not by opening the site: `curl -sI https://neogeomat.github.io/FFF-webmap/data/District.geojson`
+  should now report the SIMPLIFIED ~1.8 MB (was ~17 MB) — a stale Pages cache otherwise hides a bad upload.
 
 ## Two skill copies — keep them identical
 This skill exists twice: global `~/.hermes/skills/web-mapping/fao-fff-grantees-map/` and in-repo
@@ -365,12 +414,30 @@ before `data:loaded` fires), NOT the free-text `Commodities` string:
   Dairy / Timur / Bamboo / Vegetables; ~11 distinct on-map) instead of the ~35 free-text
   `Commodities` strings. A marker matches when ANY of its `subcategories` is checked
   (`p.subcategories.some(...)`), so multi-grant orgs filter correctly.
-- **The filter bar collapses when the user clicks outside it (user rule).** `#granteeFilterBar` opens only
-  via `#filterToggle`; a document-level `click` handler calls the same `toggleFilters()` when the click
-  landed outside `#filterBarWrap` and the bar is not already `collapsed`. Keep the early return for clicks
-  INSIDE the wrapper (pills, search box) so ticking several pills does not close the bar mid-task — the
-  toggle button lives inside the wrapper, so it never double-fires. Assert three ways: open → click a pill
-  (stays open) → click the map or the legend (collapses, label back to `Filters ▾`, `aria-expanded=false`).
+- **The Layers panel copies the legend's design tokens verbatim** (user: "make the left panel follow same fonts,
+  colors and styles as the legend"). `#leftPanel` = `rgba(255,255,255,0.97)` + `1px solid #0070b6` + the legend's
+  `0 4px 18px rgba(0,0,0,0.32)`; body `13px/15px #1a3c5e`; `.panel-header` = bold `14px #0070b6` over a
+  `1px #ced4da` underline (= `.legend-header`); `.gf-title` = `600 13px #1a3c5e` (= `.legend-section-header`);
+  pills = `.commodity-legend-item` (12px, `#f3f8fc` on `1px #ced4da`, 999px radius, `opacity: .6` unchecked,
+  ONE PER LINE — `#leftPanel .gf-group, #leftPanel .gf-commodities-list { flex-direction: column; align-items:
+  stretch }` (user rule: each entry on its own line at full panel width, so nothing wraps to a second line),
+  checked = `#0070b6` chip + white text, `.gf-box` 12×12 radius 2px `border: 1px solid currentColor` +
+  `opacity: .3` when off). Specificity trap: the ID-scoped base rule
+  (`#leftPanel .grantee-filter label.gf-value { … }`) OUTRANKS the shared `.gf-value.checked` rule, so the
+  checked colours must be restated inside the `#leftPanel` block or the pills silently lose their blue "on"
+  state. Verify by diffing `getComputedStyle` of (panel, legend), (`.panel-header`, `.legend-header`),
+  (`.gf-title`, `.legend-section-header`) and pill off/on vs the legend item off/on — only width/height may
+  differ; any font/colour/border diff is a bug. Compare STATE-MATCHED pairs (both chips off, then both on):
+  an ON legend item against an OFF pill reports four false colour diffs. Do not force the state by editing
+  classes — the legend item's blue look was not class-driven, so `classList.remove('checked')` left it blue;
+  when no same-state pair exists, mask the state-driven properties (colour/background/border/opacity/shadow)
+  and still compare font/size/padding/radius. `Webmap/tests/probe_legend_pie.js` carries these as six
+  assertions.
+- **The filters live in the left "Layers" panel now (user rule).** `#granteeFilterBar` sits inside
+  `#leftPanel .panel-content`; there is no floating wrapper, no `#filterToggle` and no `collapsed` state on the
+  bar (the panel's own toggle is the only show/hide). Rendering the pills inside a panel means they are
+  clickable while the panel is off-canvas too — probes can toggle pills without opening anything, but
+  `togglePanel('leftPanel')` first if you want them visible for a screenshot.
 - **Details panel** (`bio_table_generator` in `Webmap/js/myFuncs.js`) renders a `👩 Women-led`
   line directly under the organization name (only when `women[]` is non-empty — user rule: women-led
   is headline info, not a footnote), Enterprise Classification, then **two rows: `Timeline` (the
@@ -390,9 +457,15 @@ before `data:loaded` fires), NOT the free-text `Commodities` string:
   `bio_table_generator`'s output must stay BYTE-IDENTICAL across such a refactor — prove it by
   md5-ing the sections `scripts/biogen.js` prints before and after, not by eyeballing a popup.
 - **One shared floating popup.** `index.html` keeps one `.info-hover-popup` `<div>` on `body`, shown
-  on point `mouseover` and cluster `clustermouseover`, hidden on `mouseout`/`clustermouseout`. The
-  same HTML goes into `#aggregate` and the popup, so panel and box never diverge; position it clear
-  of the bottom/right panels (see `references/hover-popup-positioning.md`).
+  on point `mouseover` and cluster `clustermouseover`, hidden on `mouseout`/`clustermouseout`; position it
+  clear of the bottom/right panels (see `references/hover-popup-positioning.md`).
+- **Hover NEVER writes `#aggregate` (user rule — they asked twice).** The bottom panel is the CLICK
+  surface (boundary scope) and starts on the national aggregate; a hover shows the floating card only.
+  Both old writes are gone: `clustermouseover`'s and the marker `mouseover` → `highlightFeature()` path
+  (that helper wrote `bio_table_generator(...)` into `#aggregate` — deleted along with the dead
+  `highlightLayer` var, so no hover path calls `getElementById('aggregate')`). Verify with
+  `tests/probe_hover_unlink.js`: `#aggregate` must be byte-identical before/after hovering a pin AND a
+  cluster, while both hovers still show the popup.
 - **The popup must survive the pointer travelling into it (user rule).** `.info-hover-popup` needs
   `pointer-events: auto`, a `popupHovered` flag, and a DEFERRED hide: `hideHoverPopup()` returns
   early while hovered, otherwise clears the box after ~250 ms on a timer that `mouseenter` cancels.
@@ -419,22 +492,24 @@ before `data:loaded` fires), NOT the free-text `Commodities` string:
   icons/colours in `COMMODITY_ICON`/`COMMODITY_COLOR` — see `references/marker-tooltips-labels.md`.
 
 ### Panel typography (user rules)
-Panels take their FONT FAMILY and text colour from the legend, but NOT its size — 11px is rejected for
-panel content. Current target for `#leftPanel`:
-- family/colour = legend tokens (`Arial, Helvetica, sans-serif`, `#1a3c5e`), size **15px/18px** (the
-  user's explicit number), `.panel-header` 16px/19px bold `#0070b6`, `table td/th` padding `3px 5px`.
+`#leftPanel` follows the LEGEND's tokens outright — family, colour, size and chip styling. The superseded
+instruction was a one-off "make font size 15px"; the standing request is "same fonts, colors and styles as the
+legend", so copy the legend's literal numbers rather than inventing a size. Current target:
+- family `Arial, Helvetica, sans-serif`, body `13px/15px #1a3c5e`, `.panel-header` bold `14px #0070b6` +
+  `1px #ced4da` underline, section titles `600 13px #1a3c5e`, pills `12px`, `table td/th` padding `3px 5px`.
+- Sizes run **one step above the legend's** (11/12/10) — the user asked for "a bit bigger" text in this panel, so
+  the palette/shape stay legend-identical while the font sizes are +2px. The probe therefore compares the pill
+  style with size/padding masked out and asserts the panel's sizes are strictly larger.
 - Scope it with `#leftPanel, #leftPanel * { font-family: … }` plus ID-scoped size rules that list the
-  bootstrap classes hard-coding their own size (`.form-control`, `.btn`, `.dataTables_wrapper`,
-  `.dataTables_info`, `.dataTables_paginate`, `table th/td`, `label`, `input`, `select`, `button`) —
+  bootstrap classes hard-coding their own size (`.form-control`, `.btn`, `label`, `input`, `select`,
+  `button`) —
   bootstrap sets 14-16px on those, so setting the size on `#leftPanel` alone does not reach them.
   ID specificity already beats bootstrap's classes: check before adding `!important`, and it is not
   needed (this app uses none for panel fonts).
-- When the user says "make X follow the same font as Y", copy family + colour + line-height from Y and
-  EXPECT a separate size instruction — they will give the number ("make font size 15px"). Never silently
-  adopt the reference's size, and never shrink text to stop wrapping: at 15px in the 280px panel long
-  org names wrap to 2-5 lines (~42px rows, ~5-7 rows before scrolling), which the user accepted. The
-  options to offer instead are a wider panel or one-line ellipsis truncation with a `title` tooltip.
-- Verify with `getComputedStyle` on the panel, `.panel-header`, `td` and the search `input`, plus
+- "same font as Y" = copy Y's family, colour, line-height AND size unless they then name a size. Never shrink
+  text below the reference to stop wrapping — widen the fixed-width panel (280px) or ellipsis-truncate with a
+  `title` tooltip instead.
+- Verify with `getComputedStyle` on the panel, `.panel-header`, `td` and the pills, plus
   `scrollWidth - clientWidth` on `.panel-content` for horizontal overflow (must be 0), not by eye.
 - **A table is the other overflow source, and it fails invisibly.** The panels are FIXED width (`#leftPanel`
   280px, `#rightPanel` 340px), so a 4-5 column table pushes its last column past the panel edge — the
@@ -450,29 +525,24 @@ panel content. Current target for `#leftPanel`:
   typography/colour change, re-check every element that should stay light-on-dark by diffing computed
   colours against the previous build (recipe in `references/leaflet-browser-verify.md`).
 
-### Left panel list: fill the column, scroll — never paginate (user rules)
-- The panel must FILL its column: `#leftPanel { top:80px; bottom:100px; max-height: calc(100vh - 180px); }`.
-  Left at `bottom:auto`/content height it stops mid-screen and the user reports "there is empty space at
-  the bottom of the left panel"; left under the shared `80vh` cap it fights the vh-derived table height
-  and the pagination ends up a few px outside the panel.
-- `.panel-content { flex: 1 1 auto; min-height: 0 }` so the list fills the panel, and size the table body
-  with the same arithmetic: `"scrollY": "calc(100vh - 375px)"` (≈30px of slack under the panel's
-  `calc(100vh - 180px)`).
-- **Overflow only, no page numbers:** `dom: 'f<t>'` (the trailing `p` is what renders the pagination
-  footer) with `"paging": false`, dropping `pageLength`/`pagingType`. All orgs then sit in one scrollable
-  list under the search box; the row-click handler that fills `#aggregate` is unaffected. Guard that
-  handler with `if (!data) { return; }`: `table.row(this).data()` is `undefined` for the
-  "No matching records found" placeholder row, so clicking an empty search result throws
-  `Cannot read properties of undefined (reading '1')` (pre-existing, found by probing the empty state).
-- Verify at several window sizes (1400×900, 1280×750, 1600×1200): panel bottom = viewport − 100,
-  `.panel-content` `scrollHeight - clientHeight` = 0 (exactly ONE scrollbar), `.dataTables_paginate`
-  count 0, row count = org count, and the search box still filters the list.
+### Left panel = the "Layers" panel (filters inside; the grantee list is gone)
+- The panel is titled **Layers** (`#leftPanelToggle .gf-label` and `.panel-header`) and holds
+  `#granteeFilterBar` directly in its `.panel-content` — the boundary toggles plus the four pill groups
+  (Type / Commodities / Enterprise / Organization Type).
+- **The grantee DataTable was removed at the user's request**, so `buildGranteeTable()`, its row-click
+  fill-`#aggregate`-and-zoom handler, `#dataTable`, the `Filter ▾` toggle and the whole DataTables plugin
+  (`js/jquery.dataTables.js`, `js/dataTables.bootstrap4.js`, `css/dataTables.bootstrap4.css`) are gone.
+  `#mainTable` (right panel) is the only table left. jQuery itself stays — bootstrap 4 needs it.
+- The panel still FILLS its column (`#leftPanel { top:80px; bottom:100px; max-height: calc(100vh - 180px) }`)
+  and `.panel-content { flex: 1 1 auto; min-height: 0 }`; verify `scrollWidth - clientWidth === 0` (no
+  horizontal overflow) — the pills wrap at the panel's 280px.
+- No UI path zooms to an org any more. From a probe, drive the map instance itself:
+  `window.layer_District._map.setView(latlng, Math.max(map.getZoom(), 13))`.
 
 ## Aggregate panel charts + boundary-click scoping
-`#rightPanel #tab-aggregate` creates the Chart.js instances in one IIFE. **`#chartPie` (Type of Grant) and
-`#chartBar` (Commodities) are created with EMPTY arrays and were never fed any data**, so they render nothing
-until you wire them up; `#chartSankey` is a "No grant flow data yet" placeholder although `d3.sankey` IS
-vendored and ready.
+`#rightPanel #tab-aggregate` creates the Chart.js instances (pie / type-bar / commodities / investment) in one
+IIFE and `renderAggregates` + `renderInvestment` re-fill them on every scope change. The **sankey lives in the
+BOTTOM panel** now (`#bottomPanel`, under the boundary overview text), not here — see the sankey bullets.
 - **The panes stack `Nepal(430) > Chure(425) > Province(420) > LocalLevel(415) > District(410)`, so
   per-polygon click handlers never fire for a district** — a click anywhere lands on the top layer (Nepal
   covers the country). Ship ONE `map.on('click')` + `scopeCandidateAt(latlng)` that point-in-polygon tests
@@ -488,26 +558,60 @@ vendored and ready.
   Test exterior rings only (these boundary files have no holes) and name that ceiling in a comment.
 - Boundary property names / traps: District → `properties.DISTRICT` (UPPERCASE; 77 features = every Nepal
   district, so a pin always resolves); Local Level → `properties.GaPa_NaPa` + `DISTRICT` + `Type_GN` (only 33
-  project-area palikas, so palika labels fall back to the attribute); Province → `properties.Province` is
-  **MIXED numeric codes and names** (`1, 2, 5, Bagmati, Gandaki, Karnali, Sudur Pashchim`) — never label from
-  it, use `p.province` or a 7-entry code→name map.
+  project-area palikas, so a point outside them resolves to null and falls back to the attribute); Province →
+  `properties.Province` is **MIXED numeric codes and names** (`1, 2, 5, Bagmati, Gandaki, Karnali,
+  Sudur Pashchim`) — never label from it raw, run it through a 7-entry code→name map
+  (`PROVINCE_NAME` in `js/map.js`), which is 1=Koshi 2=Madhesh 3=Bagmati 4=Gandaki 5=Lumbini 6=Karnali
+  7=Sudur Pashchim.
 - Chart dimensions per feature: `p.Type_of_Grant` (`LoA`/`DBG`) and `p.subcategories` (the same clean values
   the Commodity pills filter on — not the free-text `Commodities` string). The render join must first COPY
   `district`/`province`/`municipality` from `orgs[]` onto `p` — it never did; without that there is nothing
   to fall back on for labels.
-- Sankey, as shipped: **FFF → Province → District → Palika**, one unit per organization (province from the
-  attribute, district from point-in-polygon, palika from `municipality` with an honest `Unassigned` node).
-  It is drawn at a **fixed 620x380** (not the panel's ~310px) inside `.sankey-wrap { overflow-x: auto }` —
-  the only CSS this feature needed; at panel width four levels of Nepali place names were unreadable
-  (verified with screenshots). Levels are capped (top-12 districts / top-12 palikas + `Other …`) and the
-  **palika column is drawn only when a district/palika is in scope** — nationally it was 13 one-org nodes
-  of noise. No `append('title')` tooltips: they are unclickable inside `pointer-events` panels.
+- Sankey, as shipped: **FFF → Province → District → Palika** — drawn TWICE (user rule): `#chartSankeyAmount`
+  first, flowing each org's LoA+DBG **USD** from `moneyBySN`, then `#chartSankey` counting one unit per
+  **organization**; `renderSankey(scope, ms)` fans out to `renderSankeyInto(svgId, metric, scope, ms)`, and the
+  top-N caps follow the metric below. **All three levels
+  from point-in-polygon** (user rule: "use pip for province and local levels as well") with the attribute as
+  fallback — `provinceOf` → `nameAt(layer_Province,'Province')` through `PROVINCE_NAME` (the geojson stores 3
+  provinces as bare `STATE_CODE` numbers, so `2` must become `Madhesh`), `districtOf` →
+  `layer_District.DISTRICT`, `localLevelOf` → `layer_LocalLevel.GaPa_NaPa` (only the 33 project palikas have
+  polygons, so palika often falls back to `municipality`). PIP at the palika level **merges wards**: two orgs
+  in Panauti ward 8 and ward 10 are ONE node `Panauti (2)` instead of two identical truncated labels.
+  Cost: PIP per marker against 33 palika polygons ≈ 26–30 ms for a 36-marker re-render (acceptable; cache if a
+  bigger dataset lands). Levels are capped (`topOf(distCount, 12)` / `topOf(palCount, 10)` + `Other …`) and the
+  **palika column is drawn only when a district/palika is in scope** — nationally it was 13 one-org nodes of
+  noise. No `append('title')` tooltips: they are unclickable inside `pointer-events` panels.
+- **Sankey placement: the BOTTOM panel** (`#bottomPanel`, above `#aggregate`'s text, user rule), the two charts
+  **SIDE BY SIDE** (`.sankey-row { display:flex; gap:14px }` + `.sankey-wrap { flex:1 1 0; min-width:0 }`) and each
+  **460 tall**; `renderSankeyInto` sets the SVG width from its own box at render time
+  (`Math.max(420, wrap.clientWidth - 2)` — clientWidth survives a collapsed panel, so no zero-width trap; a
+  resize does NOT re-fit, the charts keep their drawn size until the next re-render). The panel scrolls (`#bottomPanel` is a fixed 350px strip; `.panel-content` is `overflow-y:
+  auto`, so the two tall charts scroll — user asked for exactly that). Because the bottom panel STAYS VISIBLE in
+  evolution/women mode (the right panel's `#tab-aggregate` is `display:none` there), `applyEvolutionFilter`
+  re-renders both from the *visible* markers — otherwise the flow silently goes stale when the year slider
+  moves. Verify placement by geometry (`#bottomPanel` contains `#chartSankey`), not by reading markup.
+- **Killing link crossings (measured, the honest recipe):** (1) make the chart TALL — in a 230px box d3's
+  collision resolution interleaves the columns; the national view went 6 → 1 crossings going 230 → 460px, and
+  height beats every other knob. (2) Register nodes PARENT-CONTIGUOUSLY (each province's districts together) —
+  d3 keeps the node-array order within a column, but note its relaxation still nudges y by barycenter, so the
+  order is a hint, not a guarantee. (3) Do NOT bucket the tail into an "Other …" node: it is a multi-parent hub
+  and crossings return (cap 24 → 1 vs cap 10 → 4). (4) `nodeSort` by value, `iterations` and `nodePadding`
+  tweaks all measured WORSE (24/13 crossings) — do not reach for them. A money-weighted chart keeps a few
+  crossings (skewed node heights); log-scaling the widths would fix it but lies about the data, so say that
+  instead of silently distorting it. **Measure crossings instead of eyeballing them:** two links that share a
+  source column and a target column but swap vertical order MUST cross, so sampling each `path`'s endpoints
+  (`getPointAtLength(0)` / `(len)`, grouped by `|Δsx|≤4 && |Δtx|≤4`) counts them — no production hooks needed.
+  `scripts/probe_sankey_crossings.js` does exactly that; quote its numbers when reporting a fix.
+- The district node is labelled from the **polygon** (`properties.DISTRICT`, e.g. `KABHREPALANCHOK`), not from
+  the row's `district` column (`Kavre`) — point-in-polygon wins. Expect the two spellings to disagree and say
+  which one the label comes from instead of "correcting" the data.
 - **User rule — the right panel DOES auto-open when a polygon is clicked**, the deliberate exception to
   "panels never auto-open on interaction": the whole point of the click is the panel content. Pins are never
   hidden by a polygon click — the click scopes the PANEL only (`#aggOverview` + all three charts + the
   sankey; nothing filters the markers).
 - Shipped scope implementation (`js/map.js`): `polyRings` / `pointInRings` (ray casting, exterior rings),
-  `markersIn(layer)`, `districtOf(latlng)`, `renderAggregates`, `renderInvestment`, `renderSankey`,
+  `markersIn(layer)`, `nameAt(layer, prop, latlng)` + the `districtOf` / `provinceOf` / `localLevelOf`
+  wrappers, `renderAggregates`, `renderInvestment`, `renderSankey` (also called from `applyEvolutionFilter`),
   `setScope` / `clearScope` / `scopeCandidateAt`, and `showOverview` now just delegates to `setAggOverview`.
 - Three traps that cost real debugging time:
   - **`window.chartInvestment` is the `<canvas>` element** (browsers expose `id` attributes as globals) until

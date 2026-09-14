@@ -139,9 +139,10 @@
             flex: 1;
         }
 
-        /* The sankey is drawn 620px wide because four levels of Nepal place names are unreadable in
-           the panel's ~310px; this scroller keeps the rest of the panel layout untouched. */
-        .sankey-wrap { overflow-x: auto; }
+        /* The sankeys live side by side in the wide bottom strip; each scroller keeps one usable in a
+           narrow window instead of squashing it (see renderSankeyInto, which sizes itself to this box). */
+        .sankey-wrap { overflow-x: auto; flex: 1 1 0; min-width: 0; }
+        .sankey-row { display: flex; gap: 14px; align-items: flex-start; }
         #chartSankey { display: block; }
         
         .panel-header {
@@ -379,53 +380,14 @@
             justify-content: center;
             box-shadow: 0 0 0 2px rgba(0,0,0,0.45), 0 2px 4px rgba(0,0,0,0.5);
         }
-        /* ---- Filter bar below tabs (collapsible, centered) ---- */
-        .filter-bar-wrap {
-            position: fixed;
-            top: 54px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1001;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 6px;
-            pointer-events: none;
-        }
-        .filter-toggle {
-            pointer-events: auto;
-            background: #ffffff;
-            border: 1px solid #0070b6;
-            color: #0070b6;
-            border-radius: 999px;
-            padding: 5px 14px;
-            font: 12px/16px Arial, Helvetica, sans-serif;
-            font-weight: 600;
-            cursor: pointer;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.22);
-            transition: background 0.18s, color 0.18s;
-        }
-        .filter-toggle:hover { background: #e3eef6; }
-        .filter-toggle.active { background: #0070b6; color: #ffffff; }
+        /* ---- Filters now live INSIDE the left "Layers" panel: no floating wrapper, no card chrome of
+                their own (the panel is the card) and no collapsed state (the panel's toggle does that). ---- */
         .grantee-filter {
-            pointer-events: auto;
             position: relative;
-            top: auto;
-            left: auto;
-            z-index: 1000;
-            background: #ffffff;
-            border: 1px solid #ced4da;
-            border-radius: 6px;
-            padding: 10px 14px;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
             display: flex;
             flex-direction: column;
             align-items: stretch;
             gap: 10px;
-            max-width: min(90vw, 900px);
-        }
-        .grantee-filter.collapsed {
-            display: none !important;
         }
         .grantee-filter .gf-title {
             font: bold 14px/18px Arial, Helvetica, sans-serif;
@@ -750,13 +712,48 @@
             font-style: italic;
         }
 
-        /* #leftPanel — match .commodity-legend typography (reference: Arial 11px/13px #1a3c5e, header 12px #0070b6) */
+        /* #leftPanel (the Layers panel) — SAME tokens as .commodity-legend, so the two reading surfaces
+           match: card rgba(255,255,255,0.97) + 1px #0070b6 + radius 8 + shadow 0 4px 18px rgba(0,0,0,0.32);
+           body 13px/15px #1a3c5e; header bold 14px #0070b6 over a 1px #ced4da underline; section titles
+           600 13px #1a3c5e; pills 12px on #f3f8fc/1px #ced4da, 999px radius, .6 opacity while unchecked,
+           13x13 box (legend: .commodity-legend-item / .legend-header / .legend-section-header).
+           Sizes run one step above the legend's (11/12/10) — the user asked for bigger text in this panel. */
         #leftPanel, #leftPanel * { font-family: Arial, Helvetica, sans-serif; }
-        #leftPanel { font-size: 15px; line-height: 18px; color: #1a3c5e; }
-        #leftPanel .panel-header { font-size: 16px; line-height: 19px; }
-        #leftPanel table, #leftPanel table th, #leftPanel table td, #leftPanel label, #leftPanel input, #leftPanel select, #leftPanel button, #leftPanel .btn, #leftPanel .dataTables_wrapper, #leftPanel .dataTables_info, #leftPanel .dataTables_paginate { font-size: 15px; line-height: 18px; color: #1a3c5e; }
+        #leftPanel {
+            background: rgba(255, 255, 255, 0.97);
+            border: 1px solid #0070b6;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.32);
+            font-size: 13px;
+            line-height: 15px;
+            color: #1a3c5e;
+        }
+        #leftPanel .panel-content { flex: 1 1 auto; min-height: 0; padding: 6px 10px; }
+        #leftPanel .panel-header {
+            font-size: 14px; line-height: 16px; font-weight: bold; color: #0070b6;
+            border-bottom: 1px solid #ced4da; padding: 4px 0; margin-bottom: 6px;
+        }
+        #leftPanel label, #leftPanel input, #leftPanel select, #leftPanel button, #leftPanel .btn { font-size: 13px; line-height: 15px; color: #1a3c5e; }
+        #leftPanel .gf-title { font-size: 13px; line-height: 15px; font-weight: 600; color: #1a3c5e; padding: 2px 0; }
+        #leftPanel .gf-group-sep { border-top-width: 1px; border-top-color: #ced4da; padding-top: 6px; }
+        /* one entry per line (user request) — pills stretch to the panel width instead of wrapping side by side */
+        #leftPanel .gf-group, #leftPanel .gf-commodities-list { flex-direction: column; align-items: stretch; gap: 4px; }
         #leftPanel table th, #leftPanel table td { padding: 3px 5px; }
         #leftPanel table th { font-weight: 600; }
-        #leftPanel .panel-content { flex: 1 1 auto; min-height: 0; }
+        /* filter pills = .commodity-legend-item (same size, palette and dim-when-off behaviour) */
+        #leftPanel .grantee-filter label.gf-value {
+            gap: 5px; padding: 3px 8px; font-size: 12px; line-height: 14px;
+            background: #f3f8fc; border: 1px solid #ced4da;
+        }
+        #leftPanel .grantee-filter label.gf-value:not(.checked) { opacity: 0.6; }
+        /* checked = the legend item's "on" state (blue chip, white text/border) — must be restated here or
+           this ID-scoped base above outranks the shared .gf-value.checked rule */
+        #leftPanel .grantee-filter label.gf-value.checked { background: #0070b6; border-color: #0070b6; color: #ffffff; }
+        #leftPanel .grantee-filter label.gf-value .gf-box {
+            width: 13px; height: 13px; border-radius: 2px; border: 1px solid currentColor;
+            background: transparent; color: inherit; font-size: 11px; flex: 0 0 auto;
+        }
+        #leftPanel .grantee-filter label.gf-value:not(.checked) .gf-box { opacity: 0.3; }
+        #leftPanel .gf-dd-btn { font-size: 12px; line-height: 14px; background: #f3f8fc; border: 1px solid #ced4da; color: #1a3c5e; }
+        #leftPanel .gf-dd-btn:hover { background: #e3eef6; }
         /* the collapse tab is white-on-blue — keep it white, the panel font rule would darken it */
         #leftPanel .panel-toggle-btn, #leftPanel .panel-toggle-btn * { color: #ffffff; }

@@ -1,0 +1,41 @@
+name: verify
+
+# The map deploys to GitHub Pages on every push, so a broken js/map.js ships instantly.
+# These are the same probes the repo uses locally (tests/README) - they drive the real page
+# in headless Chromium, so they catch data, wiring and rendering regressions, not just syntax.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  probes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright + Chromium
+        run: |
+          npm i --no-save --no-package-lock playwright
+          npx playwright install --with-deps chromium
+
+      - name: Serve the site on :6115
+        run: |
+          python3 -m http.server 6115 --directory . &
+          for i in $(seq 1 30); do curl -sf http://localhost:6115/index.html >/dev/null && break; sleep 1; done
+          curl -sf http://localhost:6115/index.html >/dev/null || { echo "server never came up"; exit 1; }
+
+      - name: Run the probes
+        run: |
+          fail=0
+          for f in tests/verify_web_ui.js tests/probe_*.js; do
+            echo "=== $f"
+            node "$f" || fail=1
+          done
+          exit $fail

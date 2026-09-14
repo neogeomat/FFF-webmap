@@ -123,13 +123,19 @@
     function parseFiscalYear(periodStr) {
         if (!periodStr) return null;
         var s = String(periodStr).split('\n')[0];
-        var mm = s.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})/i);
         var year = 0, month = 0;
-        if (mm) { month = evoMonthToNum(mm[1]); year = parseInt(mm[2],10); }
+        // ISO date (the finance service_start column, e.g. 2020-02-14): keep the MONTH, otherwise a
+        // July-December start lands in the previous fiscal year.
+        var iso = s.match(/^(\d{4})-(\d{2})-\d{2}/);
+        if (iso) { year = parseInt(iso[1],10); month = parseInt(iso[2],10); }
         else {
-            var yy = s.match(/(\d{4})/);
-            if (yy) year = parseInt(yy[1],10);
-            else return null;
+            var mm = s.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})/i);
+            if (mm) { month = evoMonthToNum(mm[1]); year = parseInt(mm[2],10); }
+            else {
+                var yy = s.match(/(\d{4})/);
+                if (yy) year = parseInt(yy[1],10);
+                else return null;
+            }
         }
         // Nepal FY: Shrawan (July) start. month>=7 -> FY year–year+1 else (year-1)–year
         var fyStart = (month >= 7 && month !== 0) ? year : (month === 0 ? year : year - (month >= 7 ? 0 : 1));
@@ -219,7 +225,9 @@
         updateEvoChart();
     }
 
-    // Grant amount per fiscal year: each organization's total LoA + DBG contract value (USD), booked in
+    // Grant amount per fiscal year from the individual contracts' service_start dates (finance_json). Any
+    // contract without a usable date keeps the old first-appearance attribution so the years still sum to
+    // the same national total. (Historical note: before finance_json this column was attribution only.)
     // the year the organization FIRST appears - the same rule the "new grantees" column uses. It is not a
     // disbursement-per-year figure; the served files have no per-contract dates.
     function usd(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
@@ -227,9 +235,17 @@
         var out = FISCAL_LABELS.map(function() { return 0; });
         if (!moneyBySN) { return out; }        // the geocsv loads asynchronously; we re-render when it lands
         Object.keys(evoFirstFiscalByOrg || {}).forEach(function(orgId) {
-            var i = FISCAL_LABELS.indexOf(evoFirstFiscalByOrg[orgId]);
             var m = moneyBySN[String(orgId)];
-            if (i >= 0 && m) { out[i] += (m.loa || 0) + (m.dbg || 0); }
+            if (!m) { return; }
+            var total = (m.loa || 0) + (m.dbg || 0), dated = 0;
+            (m.contracts || []).forEach(function(c) {
+                var fy = c.service_start ? parseFiscalYear(c.service_start) : null;
+                var ci = fy ? FISCAL_LABELS.indexOf(fy) : -1;
+                if (ci >= 0) { out[ci] += (c.usd_value || 0); dated += (c.usd_value || 0); }
+            });
+            // undated contracts (none today, but cheap insurance) follow the first-appearance rule
+            var i = FISCAL_LABELS.indexOf(evoFirstFiscalByOrg[orgId]);
+            if (i >= 0) { out[i] += (total - dated); }
         });
         return out;
     }
@@ -259,13 +275,13 @@
             var rangeLabel = (evoFromIdx===evoToIdx) ? FISCAL_LABELS[evoFromIdx] : FISCAL_LABELS[evoFromIdx]+' → '+FISCAL_LABELS[evoToIdx];
             var sumA = 0;
             for (var j = evoFromIdx; j <= evoToIdx; j++) { sumA += amt[j]; }
-            sumEl.innerHTML = 'Selected: <strong>'+rangeLabel+'</strong> — <strong>'+sumG+'</strong> new grantees · <strong>'+sumL+'</strong> new locations · <strong>'+sumE+'</strong> new enterprises/products · Grant amount: <strong>'+usd(sumA)+'</strong><br/><span style="color:#5a6d80">Map shows grantees whose first grant falls within the selected range. Amount = total LoA + DBG contract value (USD) of the organizations first appearing in those years, not the year it was disbursed.</span>';
+            sumEl.innerHTML = 'Selected: <strong>'+rangeLabel+'</strong> — <strong>'+sumG+'</strong> new grantees · <strong>'+sumL+'</strong> new locations · <strong>'+sumE+'</strong> new enterprises/products · Grant amount: <strong>'+usd(sumA)+'</strong><br/><span style="color:#5a6d80">Map shows grantees whose first grant falls within the selected range. Amount = LoA + DBG contract value (USD) of the contracts that STARTED in those years.</span>';
         }
         // ticks highlight
         var tickEls = document.querySelectorAll('#tsTicks span');
         tickEls.forEach(function(el,i){ el.classList.toggle('active', i>=evoFromIdx && i<=evoToIdx); });
         // the geocsv can land after the table is first built - re-render the amounts once it does
-        if (!moneyBySN) { csvReady.then(function() { renderEvoTable(); }); }
+        if (!rowsReadyDone) { rowsReady.then(function() { renderEvoTable(); }); }
     }
 
     function updateEvoChart(){
@@ -629,11 +645,11 @@
 
     map.createPane('pane_Grantees');
     map.getPane('pane_Grantees').style.zIndex = 650;
-    // Load grantee organizations asynchronously via the Leaflet-ajax plugin
-    // (L.geoJson.ajax) instead of an embedded JS blob. The geometry is fetched
-    // from data/Grantees.geojson on demand, so the points layer is built once
-    // the data:loaded event fires (see below).
-    var layer_Grantees = new L.geoJson.ajax('data/Grantees.geojson', {
+    // Points come from data/Grantees.combined.geocsv - the single runtime source (geometry + org
+    // attributes + grant/women/restoration records + per-org finance). The ajax plugin went with
+    // the geojson file: we fill this layer from the parsed rows and fire 'data:loaded' ourselves,
+    // so every feature-dependent builder below keeps working unchanged.
+    var layer_Grantees = L.geoJSON(null, {
         attribution: '',
         pane: 'pane_Grantees',
         onEachFeature: pop_Grantees,
@@ -664,105 +680,136 @@
         }
     });
 
-    // Everything that depends on the (now async) grantee features must wait until
-    // the geojson finishes loading.
-    // organization_type is NOT on the geojson features; it lives in
-    // data/grantees_attributes.json (org_id == S_N). Fetch it once up front so the
-    // filter pills can be built after both sources are ready.
-    var attributesPromise = fetch('data/grantees_attributes.json').then(function(r) { return r.json(); });
+    // ---- The single runtime source: data/Grantees.combined.geocsv ----
+    // One row per grant (plus HH-only rows for orgs without one). Group the rows by S_N in the
+    // browser: org attributes, grants, women/restoration records and per-org finance all live here.
+    function wktPoint(wkt) {
+        var m = /POINT\s*\(\s*(-?[\d.]+)[\s,]+(-?[\d.]+)\s*\)/i.exec(wkt || '');
+        return m ? [parseFloat(m[1]), parseFloat(m[2])] : null;   // WKT is authoritative (X/Y can be blank)
+    }
+    function jsonList(txt) {     // a malformed cell must not empty the map; degrade to no records
+        if (!txt) { return []; }
+        try { return JSON.parse(txt) || []; } catch (e) { console.warn('bad json column', e); return []; }
+    }
+    var moneyBySN = {};
+    var attrsFromCsv = { orgs: [], grants: [] };   // the shape buildEvoData() reads
+    var rowsReadyDone = false;
+    var rowsReady = fetch('data/Grantees.combined.geocsv')
+        .then(function(r) { if (!r.ok) { throw new Error('geocsv ' + r.status); } return r.text(); })
+        .then(function(txt) {
+            var csvRows = parseCsv(txt.replace(/^\uFEFF/, ''));
+            var head = csvRows.shift() || [], ix = {};
+            head.forEach(function(h, i) { ix[h.trim()] = i; });
+            ['S_N', 'has_geometry', 'WKT', 'org_name_geojson', 'Location_geojson', 'Type_of_Grant_geojson', 'Commodities_geojson']
+                .forEach(function(c) { if (ix[c] === undefined) { console.warn('geocsv: missing column ' + c); } });
+            var cell = function(r, c) { var i = ix[c]; return (i === undefined || !r[i]) ? '' : r[i].trim(); };
+            var byOrg = {};
+            csvRows.forEach(function(r) {
+                var sn = cell(r, 'S_N');
+                if (!sn) { return; }
+                var o = byOrg[sn];
+                if (!o) {
+                    o = byOrg[sn] = {
+                        props: {
+                            S_N: isNaN(+sn) ? sn : +sn,
+                            Name_of_Organization: cell(r, 'org_name_geojson'),
+                            Location: cell(r, 'Location_geojson'),
+                            Type_of_Grant: cell(r, 'Type_of_Grant_geojson'),
+                            Commodities: cell(r, 'Commodities_geojson'),
+                            organization_type: cell(r, 'organization_type') || null,
+                            municipality: cell(r, 'municipality') || null,
+                            district: cell(r, 'district') || null,
+                            province: cell(r, 'province') || null,
+                            direct_hh: cell(r, 'direct_hh') || null,
+                            total_hh: cell(r, 'total_hh') || null,
+                            area_ha: parseFloat(cell(r, 'area_ha_org')) || null
+                        },
+                        grants: [], subcats: {}, classes: {}, women: [], restoration: [],
+                        geom: wktPoint(cell(r, 'WKT'))
+                    };
+                    moneyBySN[sn] = {
+                        loa: parseFloat(cell(r, 'loa_total_USD_org')) || 0,
+                        dbg: parseFloat(cell(r, 'dbg_total_USD_org')) || 0,
+                        cls: cell(r, 'enterprise_classification') || 'Unclassified',
+                        contracts: jsonList(cell(r, 'finance_json'))   // per-contract service_start + usd_value
+                    };
+                    attrsFromCsv.orgs.push({ org_id: +sn, district: o.props.district || '', municipality: o.props.municipality || '', location: o.props.Location || '' });
+                }
+                if (cell(r, 'grant_sn')) {
+                    var g = {
+                        grant_sn: +cell(r, 'grant_sn'),
+                        org_id: +sn,
+                        grant_title: cell(r, 'grant_title'),
+                        grantee_name: cell(r, 'grantee_name_grantCSV'),
+                        implementation_period: cell(r, 'implementation_period'),
+                        enterprise_commodity: cell(r, 'enterprise_commodity'),
+                        main_category: cell(r, 'main_category'),
+                        subcategory: cell(r, 'subcategory'),
+                        enterprise_classification: cell(r, 'enterprise_classification')
+                    };
+                    o.grants.push(g);
+                    attrsFromCsv.grants.push(g);
+                    if (g.subcategory) { o.subcats[g.subcategory] = true; }
+                    if (g.enterprise_classification) { o.classes[g.enterprise_classification] = true; }
+                }
+                if (cell(r, 'women_json')) { o.women = jsonList(cell(r, 'women_json')); }
+                if (cell(r, 'restoration_json')) { o.restoration = jsonList(cell(r, 'restoration_json')); }
+            });
+            return byOrg;
+        })
+        .catch(function(e) { console.warn('geocsv load failed - the map stays empty', e); return {}; });
+
+    // One marker per org that has coordinates; everything else on the feature is already merged.
+    rowsReady.then(function(byOrg) {
+        var features = [];
+        Object.keys(byOrg).forEach(function(sn) {
+            var o = byOrg[sn];
+            if (!o.geom) { return; }     // no coordinates -> no marker, exactly like the old null geometries
+            var p = o.props;
+            p.grants = o.grants;
+            p.women = o.women;
+            p.restoration = o.restoration;
+            p.subcategories = Object.keys(o.subcats);
+            if (p.subcategories.length === 0) { p.subcategories = ['Unclassified']; }
+            p.enterprise_classifications = Object.keys(o.classes);
+            var people = 0, areaDirect = 0, areaContrib = 0;
+            p.restoration.forEach(function(rr) {
+                people += (rr.people_benefited || 0);
+                areaDirect += (rr.area_direct_ha || 0);
+                areaContrib += (rr.area_contributed_ha || 0);
+            });
+            p.people_benefited = people || null;
+            p.area_direct_ha = areaDirect || null;
+            p.area_contributed_ha = areaContrib || null;
+            features.push({ type: 'Feature', properties: p, geometry: { type: 'Point', coordinates: o.geom } });
+        });
+        features.sort(function(a, b) { return a.properties.S_N - b.properties.S_N; });
+        layer_Grantees.addData(features);
+        rowsReadyDone = true;
+        layer_Grantees.fire('data:loaded');
+    });
+
+    // Everything that depends on the grantee features runs from the data:loaded handler below.
     layer_Grantees.on('data:loaded', function() {
         clusters_Grantees.addLayer(layer_Grantees);
         clusters_Grantees.addTo(map);   // Organizations layer on by default
         bounds_group.addLayer(clusters_Grantees);
         setBounds();
 
-        // Build the filter pills (Type of Grant, Commodities, Organization Type)
-        // and the left-panel Grantees list only after BOTH the grantee geojson
-        // and grantees_attributes.json are available. organization_type is merged
-        // onto each feature from the attributes file by matching org_id == S_N
-        // (compared as strings).
-        attributesPromise.then(function(attr) {
-            var orgTypeBySN = {};
-            (attr.orgs || []).forEach(function(o) {
-                if (o && o.organization_type) {
-                    orgTypeBySN[String(o.org_id)] = o.organization_type;
-                }
-            });
-            var districtBySN = {}, provBySN = {}, muniBySN = {};
-            (attr.orgs || []).forEach(function(o) {
-                if (!o) { return; }
-                var k = String(o.org_id);
-                if (o.district) { districtBySN[k] = String(o.district).trim(); }
-                if (o.province) { provBySN[k] = String(o.province).trim(); }
-                if (o.municipality) { muniBySN[k] = String(o.municipality).trim(); }
-            });
-            // Index the CSV-derived tables by org_id (== S_N) so each marker can
-            // carry its grants (enterprise classification / subcategory), its
-            // restoration records (area direct + contributed, people benefited)
-            // and its women-led enterprise records. These come from the
-            // moreDataFromFFF CSVs via consolidate_grantees_attributes.py.
-            var grantsByOrg = {};
-            (attr.grants || []).forEach(function(g) {
-                var k = String(g.org_id);
-                (grantsByOrg[k] = grantsByOrg[k] || []).push(g);
-            });
-            var restorationByOrg = {};
-            (attr.restoration || []).forEach(function(r) {
-                var k = String(r.org_id);
-                (restorationByOrg[k] = restorationByOrg[k] || []).push(r);
-            });
-            var womenByOrg = {};
-            (attr.women || []).forEach(function(w) {
-                var k = String(w.org_id);
-                (womenByOrg[k] = womenByOrg[k] || []).push(w);
-            });
-            layer_Grantees.eachLayer(function(l) {
-                var p = l.feature.properties;
-                var sn = String(p.S_N);
-                p.organization_type = orgTypeBySN[sn] || null;
-                p.district = districtBySN[sn] || null;
-                p.province = provBySN[sn] || null;
-                p.municipality = muniBySN[sn] || null;
-                p.grants = grantsByOrg[sn] || [];
-                p.restoration = restorationByOrg[sn] || [];
-                p.women = womenByOrg[sn] || [];
-                // Unique subcategories + enterprise classifications across this
-                // org's grants (a marker can match several filter values).
-                var subs = {}, cls = {};
-                p.grants.forEach(function(g) {
-                    if (g.subcategory) { subs[g.subcategory] = true; }
-                    if (g.enterprise_classification) { cls[g.enterprise_classification] = true; }
-                });
-                p.subcategories = Object.keys(subs);
-                if (p.subcategories.length === 0) p.subcategories = ['Unclassified'];
-                p.enterprise_classifications = Object.keys(cls);
-                // Aggregate people benefited + restoration area for the overview.
-                var people = 0, areaDirect = 0, areaContrib = 0;
-                p.restoration.forEach(function(r) {
-                    people += (r.people_benefited || 0);
-                    areaDirect += (r.area_direct_ha || 0);
-                    areaContrib += (r.area_contributed_ha || 0);
-                });
-                p.people_benefited = people || null;
-                p.area_direct_ha = areaDirect || null;
-                p.area_contributed_ha = areaContrib || null;
-            });
-            // Build evolution time-series data (Eight Years) now that grants/orgs are available
-            try { buildEvoData(attr); updateSliderUI(); } catch(e) { console.warn('evo build failed', e); }
-            // Build the Type-of-Grant / Commodities / Organization Type filter
-            // pills now that features exist and have organization_type merged.
-            buildGranteeFilters();
-            // Build the left-panel Grantees list (DataTable) now that features exist.
-            buildGranteeTable();
-            // Refresh commodity icons (literal crop drawings, stacked mini-icons) now that subcategories known
-            try { if (typeof refreshCommodityIcons === 'function') refreshCommodityIcons(layer_Grantees); } catch(e){ console.warn('refresh icons failed', e); }
-            // Build floating commodity legend (overlay on map)
-            try { buildCommodityLegend(); } catch(e){ console.warn('legend build failed', e); }
-            // National aggregate view on load (the pie/bar are empty placeholders otherwise).
-            try { renderAggregates(null); renderInvestment(null); renderSankey(null); } catch(e) { console.warn('aggregate render failed', e); }
-            // Restore the map mode chosen last visit - must run after features + p.women exist.
-            try { setMapMode(localStorage.getItem('fff.mapMode') || 'overview'); } catch (e) {}
-        });
+        // The features are ready, so build everything that depends on them.
+        try { buildEvoData(attrsFromCsv); updateSliderUI(); } catch(e) { console.warn('evo build failed', e); }
+        // Build the Type-of-Grant / Commodities / Organization Type filter pills.
+        buildGranteeFilters();
+        // Build the left-panel Grantees list (DataTable).
+        buildGranteeTable();
+        // Refresh commodity icons (literal crop drawings, stacked mini-icons) now that subcategories known
+        try { if (typeof refreshCommodityIcons === 'function') refreshCommodityIcons(layer_Grantees); } catch(e){ console.warn('refresh icons failed', e); }
+        // Build floating commodity legend (overlay on map)
+        try { buildCommodityLegend(); } catch(e){ console.warn('legend build failed', e); }
+        // National aggregate view on load (the pie/bar are empty placeholders otherwise).
+        try { renderAggregates(null); renderInvestment(null); renderSankey(null); } catch(e) { console.warn('aggregate render failed', e); }
+        // Restore the map mode chosen last visit - must run after features + p.women exist.
+        try { setMapMode(localStorage.getItem('fff.mapMode') || 'overview'); } catch (e) {}
 
         // Suppress the default hover coverage polygon so only the bottom-panel list shows.
         clusters_Grantees._showCoverage = function() {};
@@ -807,9 +854,8 @@
     }).addTo(map);
 
     // Filter organizations by Type_of_Grant / Commodities / Organization Type -
-    // top horizontal bar (not a map control). Built only after both the async
-    // grantee geojson AND grantees_attributes.json have loaded (see the
-    // attributesPromise chain in the layer_Grantees 'data:loaded' handler).
+    // top horizontal bar (not a map control). Built from the layer_Grantees
+    // 'data:loaded' handler, i.e. once the merged geocsv features are on the map.
     // The three groups AND-combine: a marker is shown only when its value is
     // checked in EVERY group. A marker whose value for a group is empty/absent
     // (e.g. a grantee with no organization_type) is not constrained by that group.
@@ -1345,33 +1391,15 @@
         if (cur.length || row.length) { row.push(cur); rows.push(row); }
         return rows.filter(function(r) { return r.length > 1; });
     }
-    var moneyBySN = {};
-    var csvReady = fetch('data/Grantees.combined.geocsv')
-        .then(function(r) { return r.text(); })
-        .then(function(txt) {
-            var rows = parseCsv(txt.replace(/^\uFEFF/, ''));
-            if (!rows.length) { return moneyBySN; }
-            var ix = {}, head = rows[0];
-            head.forEach(function(h, i) { ix[h.trim()] = i; });
-            rows.slice(1).forEach(function(c) {
-                var sn = (c[ix.S_N] || '').trim();
-                if (!sn || moneyBySN[sn]) { return; }
-                moneyBySN[sn] = {
-                    loa: parseFloat(c[ix.loa_total_USD_org]) || 0,
-                    dbg: parseFloat(c[ix.dbg_total_USD_org]) || 0,
-                    cls: (c[ix.enterprise_classification] || '').trim() || 'Unclassified'
-                };
-            });
-            return moneyBySN;
-        })
-        .catch(function() { return moneyBySN; });
 
     // LoA/DBG stacked bar per enterprise classification, for the markers in scope.
     function renderInvestment(scope, ms) {
         var el = document.getElementById('chartInvestment');
         if (!el || typeof Chart === 'undefined') { return; }
         ms = ms || markersIn(scope && scope.layer);
-        csvReady.then(function(money) {
+        // moneyBySN is filled while the geocsv is parsed (see the rowsReady loader above).
+        rowsReady.then(function() {
+            var money = moneyBySN;
             var g = {};
             // National view = every org in the file (money exists for orgs with no coordinates too, and
             // the published total 2,288,256 USD includes them). A polygon scope can only see the orgs

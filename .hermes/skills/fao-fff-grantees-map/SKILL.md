@@ -10,6 +10,9 @@ Trigger skill for editing the FAO FFF Nepal grantees Leaflet map at `/home/ubent
 **Standing rules:** prove every UI change in a browser over HTTP before reporting done; leave edits
 UNCOMMITTED and report the touched paths — commit only when the user explicitly says so. Other agents
 edit this repo concurrently, so a dirty working tree can be swept into someone else's commit.
+**Describe a proposed check by what it ASSERTS and how** (tool + assertion + the failure it catches), never
+by artifact name alone — a plan line like "a new probe_x.js" comes straight back as "what do you mean by
+that", and the round-trip costs more than the sentence.
 
 **Base conventions, layout, data pipeline, and pitfalls live in `AGENTS.md` (repo root) —
 read that first.**
@@ -19,18 +22,25 @@ lives in `Webmap/css/map.css` and ALL page JS in `Webmap/js/map.js`. Wherever th
 says `index.html` or quotes a line number for page logic, read it as `js/map.js` — the code moved there
 unchanged, in the same order.
 
-**Two AGENTS.md claims are STALE — this skill and `js/map.js` win:** (1) "all map logic inline
-`<script>` + `<style>` (~2143 lines)" — it is split now (see the verification loop below); (2) the
-Pitfalls bullet still prescribes the RACY row-zoom recipe (`clusters_Grantees.zoomToShowLayer(layer, cb)`
-+ `map.setView` in the callback). Do not follow either; a fix applied in code but left stale in
-AGENTS.md is how a regression gets re-introduced. (3) It describes `data/Grantees.combined.vrt` (and the
-`.csvt`) as shipped artifacts whose `encoding="WKT"` is what QGIS users load; `make_geocsv.py` only writes
-them when re-run, so `ls` before repeating the claim — the tracked `.geocsv` is what is actually served.
+**AGENTS.md was rewritten 2026-09-14 and is current** (split files, deterministic row zoom, the single-source
+geocsv pipeline, simplified boundaries, `tests/`, `tools/`). If a claim here and AGENTS.md ever disagree again,
+re-read the code before trusting either — a fix applied in code but left stale in the docs is how a regression
+gets re-introduced. The `.csvt`/`.vrt` writers are gone for good (deleted from `make_geocsv.py`); QGIS/GDAL open
+the tracked `Grantees.combined.csv` copy and the page fetches the `.geocsv`.
 
-**What the browser loads, and where money lives** — startup fetches 9 URLs: `data/Grantees.geojson`
-(leaflet-ajax), `data/grantees_attributes.json`, `data/Grantees.combined.geocsv` (the per-org money) and the
-five boundary geojsons. `data/investment_by_enterprise.json` and its generator `summarise_investment.py` were
-**deleted** — money is derived in the page from the geocsv; do not reintroduce either file.
+**What the browser loads** — the grantee layer has exactly ONE data fetch: `data/Grantees.combined.geocsv`,
+plus the five boundary geojsons (**simplified**: 29 MB → 2.6 MB, page 30.1 MB → 4.4 MB, 36 markers in ~0.8 s
+instead of ~1.6 s; originals live in the unversioned `../boundary-src/`, and `tests/boundary_pip_check.py`
+fails if a boundary rebuild moves a pin to another district). `data/grantees_attributes.json`,
+`data/investment_by_enterprise.json`, `consolidate_grantees_attributes.py` and `summarise_investment.py` are all
+**retired/deleted** — do not reintroduce them. `data/Grantees.geojson` still sits on disk as a *pipeline input*
+(`tools/make_geocsv.py` reads it; the geometry is hand-maintained there) but the page never fetches it.
+The pipeline now lives INSIDE the repo (`Webmap/tools/make_geocsv.py`, run `cd Webmap && python3 tools/make_geocsv.py`)
+and so do the probes (`Webmap/tests/`, `README` inside, run with `node tests/probe_geocsv_source.js` etc. after
+`npm i --no-save --no-package-lock playwright && npx playwright install chromium`). `.github/workflows/verify.yml`
+runs the whole set on every push — a red probe now blocks nothing by itself, so read the Action result.
+- The geocsv carries geometry too (`WKT` POINT per row; `X`/`Y` can be blank, WKT is what the page parses), so
+  one file answers "where is it", "what is it" and "how much money".
 - `data/Grantees.combined.geocsv` is the only per-org money source: `loa_total_USD_org` / `dbg_total_USD_org`,
   68 distinct `S_N` (36 rendered orgs — 32 orgs hold money but have no coordinates), org columns repeated on
   every grant row, so first row per `S_N` wins. National totals reproduce the deleted JSON exactly:
@@ -43,6 +53,18 @@ five boundary geojsons. `data/investment_by_enterprise.json` and its generator `
 - `.geocsv` is NOT gitignored (`git check-ignore -v` proves it) and is already tracked; keep it tracked,
   `.catch` the fetch so a missing file blanks the chart instead of breaking the page, and keep the probe's
   national-total assertion so a stale file fails loudly.
+- **Record arrays, not counts.** `make_geocsv.py` writes `women_json` / `restoration_json` (the
+  `parse_women` / `parse_restoration` record lists) next to the old count columns
+  (`women_records_org`, `restoration_records_org`, `area_direct_total_org`, …), so the details card, hover
+  popup and women-led mode need no second file. `grants[]`, `subcategories[]` and
+  `enterprise_classifications[]` the browser derives from the grant rows (one row = one grant).
+- Counts to expect: 79 rows, 68 distinct `S_N`, 36 with coordinates, 73 grant rows, **22 women / 61
+  restoration records**. The retired JSON had 23 / 70 across 77 orgs — the 10 missing records belong to
+  synthetic `A7–A15` orgs that exist only in the women/restoration CSVs and therefore have no row (no
+  coordinates, no grant): nothing the map renders lost data. `probe_geocsv_source.js` pins this.
+- `make_geocsv.py` is the whole pipeline now (`consolidate_grantees_attributes.py` was retired with its
+  outputs). Its Registry/ALIASES is copied from that script; if a name fails to resolve it becomes a synthetic
+  `A*` org — always read `data/unmatched_orgs_geocsv.txt` after a rebuild.
 The pipeline in one diagram: `Webmap/DATAFLOW.md`.
 
 This skill additionally documents the boundary-overlay behavior and the
@@ -51,17 +73,26 @@ does not yet cover — keep AGENTS.md in sync after map changes.
 
 ## When to use
 - Editing grantee data, markers, popups, the info panel, the filter, or basemaps in this repo.
-- Editing the Grantees data layer (`data/Grantees.geojson`) or its - Editing the Grantees data layer (`data/Grantees.geojson`) or its async load wiring in `js/map.js`.
+- Editing the Grantees data layer (`data/Grantees.combined.geocsv`) or its load wiring in `js/map.js`.
 - Editing the District/Local Level/Province/Chure/Nepal boundary overlays or the `#granteeFilterBar` toggle pills.
 
-## Grantee data layer (async GeoJSON via Leaflet-ajax)
-The grantee points are NO LONGER an embedded JS blob. They load from
-`Webmap/data/Grantees.geojson` through the **Leaflet-ajax plugin** (`L.geoJson.ajax`),
-vendored at `Webmap/js/leaflet-ajax.min.js` (plain `<script src>` near the other non-deferred
-libs such as markercluster/leaflet.js).
+## Grantee data layer (single source: `data/Grantees.combined.geocsv`)
+The grantee points are neither an embedded JS blob nor an async GeoJSON file. `js/map.js` creates the layer up
+front with `L.geoJSON(null, { …same options… })`, fetches the geocsv ONCE, groups the rows by `S_N` (org
+properties + `grants[]` + `women[]`/`restoration[]` + per-org money from the same row), turns each org with a
+`WKT` POINT into a Feature, then `layer_Grantees.addData(features)` and `layer_Grantees.fire('data:loaded')`.
 
-**Hard rule from the user:** load grantee data with the Leaflet-ajax plugin, NOT a raw
-`fetch(...).then(res.json())`. Use `new L.geoJson.ajax('data/Grantees.geojson', {...})`.
+**The old hard rule is superseded** — "load grantees with the Leaflet-ajax plugin, never a raw fetch" was the
+user's rule while the data was a separate GeoJSON; he then asked for exactly the opposite ("use geocsv instead
+of the grantees_attributes.json and Grantees.geojson"). `js/leaflet-ajax.min.js` is still on disk but no longer
+loaded (`<script>` tag removed); if a qgis2web re-export brings `L.geoJson.ajax` back, re-apply the geocsv
+loader instead of "restoring" the plugin.
+- The fetch is started before the `data:loaded` handler is registered and the promise always resolves in a
+  microtask after the script finishes evaluating, so the handler is in place when `fire('data:loaded')` runs.
+  Never move the loader below the builder calls or fire the event synchronously.
+- Coordinates come from the `WKT` column, not `X`/`Y` (those are blank on HH-only rows): parse with a small
+  `POINT(lon lat)` regex; an org with no `WKT` simply gets no marker (the retired geojson's `geometry: null`).
+- Loader recipe, ordering contract and the column table: `references/geocsv-single-source.md`.
 
 Because the load is async, every piece of UI that depends on the grantee features MUST be built
 inside `layer_Grantees.on('data:loaded', function(){ ... })`:
@@ -81,19 +112,21 @@ Define those as function declarations (hoisted) so they are callable from the ca
 iterate `layer_Grantees.eachLayer(...)` synchronously at top level — it runs before the features
 exist and silently yields an empty map.
 
-`data/Grantees.geojson` may contain features with `geometry: null` (orgs not yet geocoded).
-Leaflet's `geometryToLayer` returns `null` for them and `addData` skips them — they do NOT crash
-the load; only the Point features render. Keep null-geometry rows in the file as a geocoding
-to-do list (QGIS shows them in the attribute table).
+**Verify the source, not just the output.** `Webmap/tests/probe_geocsv_source.js` (run it from `Webmap/` and run
+`node probe_geocsv_source.js` against :6115) records every request and asserts
+`Grantees.geojson` and `grantees_attributes.json` are NEVER requested, the geocsv is fetched exactly once, the
+leaflet-ajax script is not loaded, and the merged result still matches the known numbers (36 orgs, 13 women-led,
+2,288,256 USD in both the money chart and the evolution column). Reading the source can't prove a dependency is
+gone; only the browser's request log can.
 
 ### Marker clustering (`maxClusterRadius`)
-`clusters_Grantees = L.markerClusterGroup({ maxClusterRadius: 25, spiderfyOnMaxZoom: true, showCoverageOnHover: true, iconCreateFunction: … })`.
+`clusters_Grantees = L.markerClusterGroup({ maxClusterRadius: 35, spiderfyOnMaxZoom: true, showCoverageOnHover: true, iconCreateFunction: … })`. **Read the live value out of `js/map.js` before quoting it** — the user tunes it and the docs have lagged behind the code before (50 → 25 → 35).
 - **The radius is SCREEN PIXELS, not metres.** A point joins a cluster when it is within that many px of
 the cluster's centre at the current zoom, so the ground distance it covers halves with every zoom level —
 50 px is a few hundred metres at z13 in Kathmandu and tens of metres at z16. State it in pixels when the
 user asks "how much is the cluster distance".
-- The user tuned it 50 → 25 for "more individual pins": at 25 the startup view showed 10 pins + 8 clusters
-  where 50 gave 7 + 7. Raise it to group more, lower it to split more; a zoom-dependent function
+- The user tunes it down for "more individual pins" (50 → 25 → 35). At 35 the startup view is 9 pins + 8
+  clusters covering all 36 orgs. Raise it to group more, lower it to split more; a zoom-dependent function
   (`function(zoom){ return zoom > 15 ? 20 : 50; }`) or `disableClusteringAtZoom` are the next knobs.
 - **Verify cluster changes by reconciling counts, not by eye:** every geocoded org is rendered exactly
   once, so `pins + Σ(cluster label numbers)` must equal the org-with-geometry count (36). Assert that, and
@@ -102,14 +135,14 @@ user asks "how much is the cluster distance".
 
 **Two `S_N` rows can be ONE organization** (same CFUG, identical coordinates, one row per grant —
 the source coordinate sheet lists one row per grant). Fold the duplicate onto the surviving `S_N`
-with `SAME_ORG = {duplicate: keep}` + `canonical_org()` in BOTH `consolidate_grantees_attributes.py`
-and `make_geocsv.py`, and DELETE the duplicate FEATURE from `Webmap/data/Grantees.geojson` — leaving
+with `SAME_ORG = {duplicate: keep}` + `canonical_org()` in `make_geocsv.py` (the only script left), and
+DELETE the duplicate FEATURE from `Webmap/data/Grantees.geojson` (**pipeline input**, not served) — leaving
 it renders a second pin with no attributes. Org/pill/pin counts then drop by one while money totals
 stay identical (assert that). Ask which row survives before merging: the survivor's base
-`Type_of_Grant` decides which grant-type pill still matches. Recipe:
-`references/attribute-data-consolidation.md`.
+`Type_of_Grant` decides which grant-type pill still matches. Where each column comes from and how the browser
+loads it: `references/geocsv-single-source.md`.
 
-The map now needs HTTP for EVERYTHING: boundaries use `fetch`, grantees use the ajax plugin.
+The map now needs HTTP for EVERYTHING: boundaries and grantees are both `fetch`-ed.
 **`file://` shows no grantees AND no boundaries** — always serve over HTTP to verify.
 
 ## Boundary overlays (added after AGENTS.md — keep AGENTS.md in sync)
@@ -122,8 +155,8 @@ labelled **Local Level** in the UI, never `projectLocalLevels`),
 Chure (1, green #27ae60, the Terai/Chure belt),
 Nepal (1, white #ffffff, always added to the map on load).
 - Loaded via `fetch`, NOT embedded globals — **they only appear when served over HTTP;
-  opening `index.html` via `file://` silently shows no boundaries.** The Grantees layer
-  still works on file:// (it uses the embedded `var json_Grantees`).
+  opening `index.html` via `file://` silently shows no boundaries.** The Grantees layer is `fetch`-ed too
+  (the geocsv), so `file://` shows no boundaries AND no markers — HTTP for everything, no exceptions.
 - **Startup canvas (user rules):** base layer is `No background` so the light-green `#map` background (`#e8f5e9`, one CSS declaration on `#map`) shows; Satellite (Esri) and OpenStreetMap stay selectable in the switcher but are NOT added on load. **Above z12 the satellite turns itself on, at ≤12 it turns off** — one `map.on('zoomend')` handler that adds/removes `layer_EsriImagery` against `empty_baseLayer`; `L.control.layers` re-ticks its own radio off the `layeradd`/`layerremove` events, so never hand-sync the switcher. Verify the threshold with the row-zoom as a known anchor (it lands exactly at z13, so the satellite must already be on there): one zoom-out to z12 must clear every `img.leaflet-tile` and zooming back to z13 must bring them back. Implement the empty base as `L.gridLayer({})`, never `L.tileLayer('')` — the blank tileLayer still spawns a screenful of tile elements (bogus requests for the page itself) even though nothing paints. Assert both sides of that judgement: `img.leaflet-tile` count 0 on startup, and > 0 after clicking `Satellite (Esri)` in the switcher (proves the base-layer choice still works).
 - **The startup fit must leave the east edge clear of the floating legend** (user: the legend was blocking the east side on startup). `setBounds()` does `map.fitBounds(bounds_group.getBounds(), { paddingBottomRight: [200, 0] })` — 200px reserved on the right (~the collapsed right panel plus the 190px legend) shifts the fitted content left by half of it and zooms out a hair. Measure `window.layer_Grantees`-free (it is closure-scoped): the east-most `.org-pin-wrap`/`.grantee-cluster` right edge must sit left of `.commodity-legend`'s left edge with zero markers intersecting the legend rect; on the un-padded build markers sat ~67px underneath it.
 - No zoom auto-toggle anymore — District/Local Level/Province/Chure are toggled manually via checkboxes in
@@ -218,19 +251,22 @@ code kept as a fallback; leave it alone.
   the national total (2,288,256 USD) — a nice invariant, and the probe checks it. No served file carries
   per-contract dates (the xlsx's `Service Start/End` is not in the geocsv), so a true per-year disbursement
   figure would need that column exported per contract first; say so rather than implying the column is real.
-  Money loads asynchronously, so `renderEvoTable()` re-runs itself once `csvReady` resolves.
+  Money arrives with the geocsv, so `renderEvoTable()` re-runs itself once `rowsReady` resolves. **The column is
+  real since 2026-09-14:** `moneyBySN[sn].contracts[]` carries every LoA/DBG contract with its `service_start`, and
+  `evoAmountByYear()` books each contract's USD in the fiscal year it STARTED (`parseFiscalYear` parses ISO dates);
+  only undated contracts fall back to the first-appearance rule, which keeps the years summing to 2,288,256 USD.
 - **Persist the active mode in `localStorage['fff.mapMode']`** (written inside `setMapMode`, so the restore
 call also persists) and restore by calling `setMapMode(localStorage.getItem('fff.mapMode') || 'overview')` as
-the LAST statement of the `attributesPromise.then(...)` block in `data:loaded`. Restoring at script scope runs
+the LAST statement of the `data:loaded` handler. Restoring at script scope runs
 before features exist — and before `p.women`/`p.grants` are merged — so the filter no-ops and the map silently
 shows everything on reload.
 - **Verify a mode by SET, not count** — the rendered orgs must equal (orgs matching the mode's data condition
   ∧ `has_geometry`) and the mode must survive a reload; a bare count passes on the wrong orgs. Recipe:
   `references/leaflet-browser-verify.md` ("Verifying a filter or view mode").
 - **User rule — no Python for view data.** New views and aggregations are computed in `js/map.js` /
-`js/myFuncs.js` from the `grantees_attributes.json` payload the page already fetches and joins per feature
-(`p.women`, `p.grants`, `p.restoration`, `p.subcategories`). A per-org total is a two-line JS sum; do not add
-a pipeline script or regenerate the JSON for a view.
+`js/myFuncs.js` from the feature properties the page already builds (`p.women`, `p.grants`, `p.restoration`,
+`p.subcategories`, all from the geocsv). A per-org total is a two-line JS sum; do not add a pipeline script or
+a new data file for a view.
 
 ### `Map Categories_Final.xlsx - *.csv` are SPEC sheets, not data tables
 Each stacks three blocks: the view spec (what to show / how to encode it), a stories block, then the data table
@@ -317,14 +353,14 @@ someone else's baseline commit. Before syncing or copying anything, re-check `gi
 `diff -rq`, and use `git log -S '<marker>' -- <path>` to find which commit carries a change
 instead of assuming yours is still uncommitted.
 
-## Grantee filters + details panel (sourced from grantees_attributes.json)
-The Commodities filter and the right Details panel read CSV-derived attributes merged onto each
-feature at render time (in `js/map.js`, inside `layer_Grantees.on('data:loaded', …)` →
-`attributesPromise.then(...)`), NOT the free-text `Commodities` string on the geojson:
-- Merge step builds `grantsByOrg`/`restorationByOrg`/`womenByOrg` keyed by `String(org_id)`, then
-  attaches to each feature: `grants[]`, `restoration[]`, `women[]`, `subcategories[]` (unique),
-  `enterprise_classifications[]` (unique), and aggregates `people_benefited`, `area_direct_ha`,
-  `area_contributed_ha`.
+## Grantee filters + details panel (sourced from the geocsv rows)
+The Commodities filter and the right Details panel read CSV-derived attributes carried on each
+feature (built in `js/map.js` while the geocsv rows are grouped, so every property is present
+before `data:loaded` fires), NOT the free-text `Commodities` string:
+- The grouping step attaches to each org's feature: `grants[]`, `restoration[]`, `women[]`,
+  `subcategories[]` (unique), `enterprise_classifications[]` (unique), and aggregates
+  `people_benefited`, `area_direct_ha`, `area_contributed_ha` (summed from the restoration records),
+  plus `organization_type` / `municipality` / `district` / `province` / `direct_hh` / `total_hh`.
 - **Commodities filter** now uses `subcategory` (clean values from `grants[].subcategory`, e.g.
   Dairy / Timur / Bamboo / Vegetables; ~11 distinct on-map) instead of the ~35 free-text
   `Commodities` strings. A marker matches when ANY of its `subcategories` is checked
@@ -400,6 +436,13 @@ panel content. Current target for `#leftPanel`:
   options to offer instead are a wider panel or one-line ellipsis truncation with a `title` tooltip.
 - Verify with `getComputedStyle` on the panel, `.panel-header`, `td` and the search `input`, plus
   `scrollWidth - clientWidth` on `.panel-content` for horizontal overflow (must be 0), not by eye.
+- **A table is the other overflow source, and it fails invisibly.** The panels are FIXED width (`#leftPanel`
+  280px, `#rightPanel` 340px), so a 4-5 column table pushes its last column past the panel edge — the
+  evolution table's `Grant amount (USD)` was completely off-screen while the table still looked "tight" in a
+  screenshot. Fix with `table-layout: fixed` + explicit `th:nth-child(n), td:nth-child(n) { width: …% }` +
+  `white-space: normal` on the headers (`nowrap` headers are what widen the table; let them wrap instead) +
+  tighter cell padding. Verify `table.scrollWidth - table.clientWidth === 0` AND that the last cell's
+  `getBoundingClientRect().right <= panel.getBoundingClientRect().right`. Precedent: `.evo-table`.
 - **A deliberately white-on-colour element inside a restyled panel WILL go dark.** An ID-scoped `color:`
   on `#leftPanel button` / `.btn` outranks the tab's own rule, so the "‹ Grantees" collapse tab lost its
   white text on the blue background and had to be re-asserted at the END of the block:

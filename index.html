@@ -10,7 +10,6 @@
     <link rel="stylesheet" href="css/leaflet.css">
     <link rel="stylesheet" href="css/qgis2web.css">
     <link rel="stylesheet" href="css/fontawesome-all.min.css">
-    <link rel="stylesheet" href="css/leaflet-search.css">
     <link rel="stylesheet" href="css/MarkerCluster.css">
     <!-- Custom fonts for this template-->
     <link href="css/all.min.css" rel="stylesheet" type="text/css">
@@ -22,7 +21,6 @@
     <link href="css/sb-admin.css" rel="stylesheet">
 
     <!-- Preconnect to CDN for faster resource loading -->
-    <link rel="preconnect" href="https://cdn.polyfill.io">
     <link rel="preconnect" href="https://tile.openstreetmap.org">
     <link rel="preconnect" href="https://server.arcgisonline.com">
 
@@ -30,28 +28,21 @@
     <script src="js/jquery.min.js"></script>
     <script src="js/leaflet.js"></script>
     <script src="js/leaflet.markercluster.js"></script>
-    <script src="js/leaflet-ajax.min.js"></script>
     
     <!-- Non-critical scripts deferred for faster initial render -->
     <script defer src="js/bootstrap.bundle.min.js"></script>
     <script defer src="js/jquery.dataTables.js"></script>
     <script defer src="js/dataTables.bootstrap4.js"></script>
-    <script defer src="js/qgis2web_expressions.js"></script>
-    <script defer src="js/leaflet.rotatedMarker.js"></script>
-    <script defer src="js/leaflet.pattern.js"></script>
     <script defer src="js/leaflet-hash.js"></script>
-    <script defer src="js/Autolinker.min.js"></script>
-    <script defer src="js/rbush.min.js"></script>
-    <script defer src="js/labelgun.min.js"></script>
-    <script defer src="js/labels.js"></script>
-    <script defer src="js/leaflet-search.js"></script>
-    <script defer src="js/leaflet-timeline-slider.js"></script>
+    <!-- ponytail: dropped 9 plugins nothing references (search/timeline-slider/labelgun+rbush/
+         Autolinker/labels.js/pattern/rotatedMarker/qgis2web_expressions + their CSS).
+         Re-add from the qgis2web export if a future feature needs one. -->
     <script defer src="js/vendor/chart.umd.js"></script>
     <script defer src="js/vendor/d3.v7.min.js"></script>
     <script defer src="js/vendor/d3-sankey.min.js"></script>
     
-    <!-- Polyfill loaded asynchronously to not block rendering -->
-    <script async src="https://cdn.polyfill.io/v2/polyfill.min.js?features=Promise"></script>
+    <!-- ponytail: the cdn.polyfill.io script was removed - the domain was sold in 2024 and served a
+         malicious payload; Promise is native in every browser this map targets. -->
     <!-- Page styles split out to css/map.css (kept in this position, after the vendored CSS,
          so the cascade order is unchanged). Re-apply after any qgis2web re-export. -->
     <link rel="stylesheet" href="css/map.css">
@@ -146,7 +137,7 @@
             </div>
             <div id="tab-evolution">
                 <div class="panel-header">Evolution of FFF Support — “Eight Years of FFF”</div>
-                <p class="evo-intro">A time-series map showing FFF expansion. Each row counts <strong>first appearance</strong> in that fiscal year (new grantees / new locations / new enterprises). Grant amount books each organization's total LoA + DBG contract value (USD) in the year it first appears — not the year the money was disbursed.</p>
+                <p class="evo-intro">A time-series map showing FFF expansion. Each row counts <strong>first appearance</strong> in that fiscal year (new grantees / new locations / new enterprises). Grant amount books each LoA/DBG contract's USD value (Nepal FY) in the year that contract <strong>started</strong>.</p>
                 <table class="evo-table" id="evoTable">
                     <thead>
                         <tr>

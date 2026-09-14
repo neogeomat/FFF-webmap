@@ -44,6 +44,20 @@ Boundary overlays load via `fetch` and are BLOCKED on `file://` — always use H
   legend with 0 markers intersecting its rect; before it, one marker sat 67px *under* the legend. Any pan
   invalidates this — reload rather than re-measuring.
 
+## Proving a data dependency is GONE (assert on the request log)
+Dropping a source file is not proved by reading the diff. A leftover `fetch` on an error path, a builder that
+only runs in one mode, or a half-reverted edit all look clean in a diff and still hit the network. Record
+every request and assert against that list:
+```js
+const reqs = [];
+page.on('request', r => { try { reqs.push(new URL(r.url()).pathname); } catch (e) {} });
+// after load plus whatever interactions you care about:
+assert(!reqs.some(p => /Grantees\.geojson|grantees_attributes\.json/.test(p)));
+```
+Print the `data/` subset of `reqs` inside the failure message — "which URLs did it actually ask for" is the
+whole diagnosis, and the same log proves the positive form of a switch (exactly ONE data request where there
+used to be three). Cheap to bolt onto a probe that already loads the page.
+
 ## Gotcha: OpenCode delegation
 After `opencode run`, the edit may have landed even if the command exits non-zero from trailing
 shell noise (`-/ command not found`, `unexpected EOF`). Verify with `git diff --stat` and a
@@ -58,7 +72,15 @@ CLI. A block move, a one-constant change or a path rename is faster and race-fre
 saved time spent on the probe suite — do that and say so. Reserve delegation for edits that need judgement
 across several rules at once.
 
-## "It used to be white" — diff computed styles against the previous build
+## Is this MY regression? — A/B the previous build on a second port
+Any suspected regression ("it used to be white", "the popup stopped opening", a probe that fails after a data
+migration) is settled by running the SAME probe against HEAD, never by reading your diff — a diff looks clean
+whether or not the behaviour changed. Whole-tree copy, assets included:
+    rm -rf /tmp/oldsite && mkdir -p /tmp/oldsite
+    cd Webmap && git archive HEAD | tar -x -C /tmp/oldsite && python3 -m http.server 6117 --directory /tmp/oldsite
+Point a copy of the probe at :6117 (`sed -i 's/:6115/:6117/'`), diff the two outputs line by line, kill the
+temp server. Identical geometry/behaviour ⇒ pre-existing, stop chasing it and say so in the report. This is
+how a hover-popup that only opened once per pointer-exit was cleared as NOT caused by the geocsv switch.
 When the user says an element looked different BEFORE some edit, do not guess which rule won: build the
 previous version and diff the computed styles.
     cd Webmap && git show HEAD:index.html > /tmp/head_site/index.html
@@ -106,8 +128,19 @@ Uncommitted work is exactly what makes this cheap: the working tree is the "now"
       page.evaluate(() => { window.__clicks = []; document.addEventListener('click', e => window.__clicks.push((e.target.tagName||'?') + '.' + String(e.target.className||'').slice(0,24))); })
   then read `window.__clicks` after the action, and pick coordinates outside the overlay's
   `getBoundingClientRect()`.
+- **The PANELS are overlays too, and they move.** `#rightPanel` owns the right 340px, `#leftPanel` the left
+  280px, `#bottomPanel` the bottom 350px, so a click there never reaches the map — probing a small polygon
+  whose bbox sits under a panel reads as "no polygon hit", i.e. a broken point-in-polygon test that is
+  actually a missed click. Aim at the middle band (roughly x 300-1000, y 150-600 at 1500x950). A polygon click
+  AUTO-OPENS `#rightPanel`, so the safe area SHRINKS between the first and second click of one probe:
+  re-read the target rect before every click instead of caching coordinates.
+- **Re-scope by clicking just beside a pin.** A district's bbox centre can fall outside its irregular ring or
+  off-screen entirely. Clicking ~25px to the right of a rendered `.org-pin-wrap` lands inside that district
+  and off the marker — exactly the safe spot, because the map click handler ignores marker/tooltip targets.
+  Assert the resulting KIND (`#aggOverview` starts with `District — `), not the polygon name, which depends on
+  where the pin happens to sit.
 
-## Verifying the async Grantees layer (added with Leaflet-ajax)
+## Verifying the Grantees layer (single source: the geocsv)
 The grantee layer is built inside `layer_Grantees.on('data:loaded', ...)`, so `window.layer_Grantees`
 is NOT defined (it's closure-scoped). Probe the rendered result instead:
 - Marker clusters: `document.querySelectorAll('.grantee-cluster').length`
@@ -127,24 +160,29 @@ is NOT defined (it's closure-scoped). Probe the rendered result instead:
   found" row, so an empty result is data, not a bug — and clicking that row must not throw (the handler
   guards `if (!data) return;` because `table.row(this).data()` is `undefined` for it).
 A successful render = clusters > 0 AND 2 filter pills AND table rows > 0 AND no JS console errors.
-If clusters = 0 but pills/table are also empty, the `data:loaded` callback didn't fire — check the
-geojson URL (must be `data/Grantees.geojson`, HTTP-served) and that `leaflet-ajax.min.js` loaded.
+If clusters = 0 but pills/table are also empty, the `data:loaded` event never fired — the loader only fires it
+after the geocsv parses, so check in this order: the console warning (`geocsv load failed` / `geocsv 4xx`), the
+column names the loader asserts (`geocsv: missing column …`), and that `data/Grantees.combined.geocsv` is
+served over HTTP. There is no longer a geojson or `leaflet-ajax.min.js` in the path.
 
-Features with `geometry: null` are skipped by Leaflet, so counts reflect only the Point features.
+An org with no `WKT` value gets no marker (the old `geometry: null` rows), so counts reflect the Point rows only.
+`has_geometry` in the file and the rendered count must agree — reconcile them, don't eyeball the map.
 
 ## Verifying a filter or view mode (reconcile the SET, not the count)
 A new `.mm-tab` mode or a filter pill is proved by checking the rendered orgs are the RIGHT ones — a bare
-count passes while showing the wrong 13. Compute the expectation in-page from the same JSON the map reads:
-    const exp = await p.evaluate(async () => {
-      const a = await (await fetch('data/grantees_attributes.json')).json();
-      const has = {}; (a.women || []).forEach(w => { has[String(w.org_id)] = true; });
-      return { total: Object.keys(has).length,
-               names: (a.orgs || []).filter(o => has[String(o.org_id)] && o.has_geometry).map(o => o.name) };
-    });
-- **Expected count is (matching records ∧ `has_geometry`), and it is usually SMALLER than the record count.**
-  77 orgs carry attributes, only 36 have coordinates, so every data-driven filter silently drops the
-  geometry-less ones (women-led: 19 orgs, 13 on the map; one org id can even be synthetic `A*`). Print both
-  numbers in the probe output — "the mode shows too few" is normally the data, not the filter.
+count passes while showing the wrong 13. The map's ONLY data source is `data/Grantees.combined.geocsv`, so do
+NOT rebuild the expectation in-page: the retired `grantees_attributes.json` now 404s and the probe dies on
+`await r.json()`. Generate the expected set OFFLINE and freeze it in the probe next to the command that made it:
+    # women-led orgs that can actually render (records + coordinates)
+    python3 -c "import csv;r=list(csv.DictReader(open('Webmap/data/Grantees.combined.geocsv',encoding='utf-8-sig')));print(sorted({x['org_name_geojson'] for x in r if x['women_json'].strip() and x['WKT'].strip()}))"
+- **Expected count is (matching records ∧ coordinates), and it is usually SMALLER than the record count.**
+  68 orgs are in the geocsv and only 36 carry a `WKT`, so every data-driven filter silently drops the rest
+  (women-led: 18 orgs with records, 13 on the map; the retired JSON had 19/13, so a mode that suddenly shows 13
+  did NOT lose an org). Print both numbers in the probe output — "the mode shows too few" is normally the data,
+  not the filter.
+- Compare the RENDERED NAMES against a frozen list with whitespace normalized
+  (`replace(/\s+/g,' ').trim().toLowerCase()`): the geocsv org names carry double spaces and trailing location
+  text, so raw string equality fails while the mode is correct.
 - Rendered count: `document.querySelectorAll('.org-pin-wrap').length` + Σ(the number in each
   `.grantee-cluster`). Rendered NAMES: the `.org-tip-name` tooltip texts — clustered members have no tooltip
   in the DOM, so use them as a SUBSET assertion (every visible name must be in the expected set; an empty
@@ -168,9 +206,9 @@ paths carry no name and are indistinguishable by shape.
 - **Click the real element with a real pointer** (`page.mouse.click(cx, cy)` at the path's bbox centre).
   Leaflet handles clicks through its own DOM listener; a synthetic `new MouseEvent('click')` on the SVG path
   is unreliable for paths.
-- **Recompute the expectation in page context** from `Grantees.geojson` + `grantees_attributes.json` with
-  your own copy of the point-in-polygon test, then compare label-by-label against `window.chartPie.data`,
-  `window.chartBar.data` and the invested/flow instances — a count-only assertion passes on the wrong orgs.
+- **Recompute the expectation in page context** from the geocsv rows with your own copy of the
+point-in-polygon test, then compare label-by-label against `window.chartPie.data`, `window.chartBar.data` and
+the invested/flow instances — a count-only assertion passes on the wrong orgs.
 - **Prove chart COLOURS by sampling the canvas — not by eye, and not only with an image reviewer.** A chart
   can hold the right data and still paint black (a missing `backgroundColor` renders the translucent-black
   default). `getImageData` + a tolerance count is deterministic:
@@ -238,6 +276,14 @@ Both hovers are DOM-only — assert on the popup, not on Leaflet events. Probe: 
   the screenshot shows the pin dead-centre. Use `[...document.querySelectorAll('.org-pin-wrap')]` rects
   against `#map`'s rect. When a probe disagrees with a screenshot, suspect the selector before the code, and
   say which one you changed.
+- **A popup shows on the FIRST hover only**, until the pointer leaves and re-enters; a loop that hovers five
+  pins and collects five cards gets 1 non-empty card and looks like a broken popup path. Assert one full card
+  plus its row contents, or hover, read, move away and RE-ENTER the same pin. Clear it as pre-existing by A/B
+  before calling it a regression (it reproduces on HEAD).
+- **Keep every probe/debug script in `~/pw-check`** — that directory holds `node_modules`, so a script run from
+  `/tmp` dies with `MODULE_NOT_FOUND: playwright`. Write it into `Webmap/tests/` (or `~/pw-check/`, which has its
+  own `node_modules`) and run it from there rather than
+  adding a second dependency install.
 - **Playwright `page.evaluate` takes exactly ONE argument** — `page.evaluate(fn, someObject)`. Passing
   `fn, arg, null, 1` throws `Too many arguments`; wrap extra values in the single object.
 

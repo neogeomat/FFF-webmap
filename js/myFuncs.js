@@ -9,7 +9,7 @@ var bio_detail_rows = function(p) {
                     escapeHtml(p['Commodities'] || '') + '</td></tr>';
 
         // Enterprise classification (from the moreDataFromFFF Enterprise
-        // Commodity / Nature of Enterprises CSVs, via grantees_attributes.json).
+        // Commodity / Nature of Enterprises CSVs, carried by the geocsv).
         if (p.enterprise_classifications && p.enterprise_classifications.length) {
             s += '<tr><th scope="row">Enterprise Classification</th><td>' +
                 escapeHtml(p.enterprise_classifications.join(', ')) + '</td></tr>';
@@ -169,7 +169,7 @@ function commodityPinHtml(subcategories) {
 // Single-point marker: literal crop drawing (or stacked mini-icons)
 function style_Grantees_div_icon(feature) {
     var p = feature && feature.properties ? feature.properties : {};
-    // Prefer merged subcategories (post-attributesPromise), fallback to Commodities text
+    // Prefer merged subcategories (from the geocsv), fallback to Commodities text
     var subs = p.subcategories;
     if (!subs || !subs.length) {
         var rawTokens = p.Commodities ? p.Commodities.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];

@@ -1,0 +1,53 @@
+Org-name matching review
+======================================================================
+
+FUZZY MATCHES — confirm or fix these aliases in consolidate_grantees_attributes.py (ALIASES)
+----------------------------------------------------------------------
+
+[women 2019-2024] Sundari CFUG
+  -> NO SUGGESTION
+
+[restoration 2022 and 2023] Galkot  Agroforestry Cardamom Group
+  -> NO SUGGESTION
+
+[restoration 2022 and 2023] Neurepani CFUG- Asmita Nepal
+  -> NO SUGGESTION
+
+[restoration 2022 and 2023] Buddha CFUG
+  -> NO SUGGESTION
+
+[restoration 2022 and 2023] ShivaMandir CFUG
+  -> NO SUGGESTION
+
+[restoration 2022 and 2023] Nawadurga CFUG
+  -> NO SUGGESTION
+
+[restoration 2022 and 2023] Pokharital CFUG
+  -> NO SUGGESTION
+
+[restoration 2022 and 2023] Manakamana and Janakalyan CFUG
+  -> NO SUGGESTION
+
+[restoration 2022 and 2023] GFN: Kalika, Malika Jaluke; Mayalu, Shrijana, Panesuwa, Tilkanya CFUGs
+  -> NO SUGGESTION
+
+
+
+AUTO-CREATED NEW ORGS (no geometry in Grantees.geojson; geocode later)
+----------------------------------------------------------------------
+
+A1: Setidevi Dairy Cooperative Ltd (member of CDCAN)
+A2: Deurali Dairy Cooperative Ltd (member of CDCAN)
+A3: Milan Women Farmer's Group (under NFGF)
+A4: Sirjanshil Women Farmer Group (under NFGF)
+A5: Chabeli Farmer Group, Makawanpur (under NFGF)
+A6: Gangamala Farmer's Group (under NFGF)
+A7: Sundari CFUG
+A8: Galkot  Agroforestry Cardamom Group
+A9: Neurepani CFUG- Asmita Nepal
+A10: Buddha CFUG
+A11: ShivaMandir CFUG
+A12: Nawadurga CFUG
+A13: Pokharital CFUG
+A14: Manakamana and Janakalyan CFUG
+A15: GFN: Kalika, Malika Jaluke; Mayalu, Shrijana, Panesuwa, Tilkanya CFUGs

@@ -137,15 +137,16 @@
                 <div class="panel-header">Aggregate</div>
                 <div id="aggOverview"></div>
                 <div><strong>Type of Grant (pie)</strong><canvas id="chartPie"></canvas></div>
+                <div><strong>Type of Grant (bar)</strong><canvas id="chartTypeBar"></canvas></div>
                 <div><strong>Commodities (bar)</strong><canvas id="chartBar"></canvas></div>
                 <div><strong>Investment by enterprise (USD)</strong><canvas id="chartInvestment"></canvas></div>
-                <div><strong>Grant flow (sankey)</strong><svg id="chartSankey"></svg></div>
+                <div class="sankey-wrap"><strong>Grant flow (sankey)</strong><svg id="chartSankey"></svg></div>
                 <div class="panel-header" style="margin-top: 15px;">Data Table</div>
                 <table class="table table-bordered" id="mainTable" width="100%" cellspacing="0"></table>
             </div>
             <div id="tab-evolution">
                 <div class="panel-header">Evolution of FFF Support — “Eight Years of FFF”</div>
-                <p class="evo-intro">A time-series map showing FFF expansion. Each row counts <strong>first appearance</strong> in that fiscal year (new grantees / new locations / new enterprises). Grant amount column is kept blank — data not available.</p>
+                <p class="evo-intro">A time-series map showing FFF expansion. Each row counts <strong>first appearance</strong> in that fiscal year (new grantees / new locations / new enterprises). Grant amount books each organization's total LoA + DBG contract value (USD) in the year it first appears — not the year the money was disbursed.</p>
                 <table class="evo-table" id="evoTable">
                     <thead>
                         <tr>
@@ -153,7 +154,7 @@
                             <th>New grantees</th>
                             <th>New locations</th>
                             <th>New enterprises / products</th>
-                            <th>Grant amount</th>
+                            <th>Grant amount (USD)</th>
                         </tr>
                     </thead>
                     <tbody></tbody>

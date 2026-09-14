@@ -53,6 +53,10 @@ workdir — your `~/pw-check` probes, or a `git diff` path that resolves above t
 `! permission requested: external_directory (…); auto-rejecting` and ABORTS the run, usually AFTER the file
 edit already landed. So never ask it to verify with your harness; pass the prompt via a file
 (`PROMPT=$(cat /tmp/x.txt) && opencode run "$PROMPT" --model <model>`) instead of quoting it inline.
+The inverse also holds: an invoked `/opencode` is not a reason to funnel a PURE MECHANICAL edit through the
+CLI. A block move, a one-constant change or a path rename is faster and race-free applied directly, with the
+saved time spent on the probe suite — do that and say so. Reserve delegation for edits that need judgement
+across several rules at once.
 
 ## "It used to be white" — diff computed styles against the previous build
 When the user says an element looked different BEFORE some edit, do not guess which rule won: build the
@@ -128,6 +132,65 @@ geojson URL (must be `data/Grantees.geojson`, HTTP-served) and that `leaflet-aja
 
 Features with `geometry: null` are skipped by Leaflet, so counts reflect only the Point features.
 
+## Verifying a filter or view mode (reconcile the SET, not the count)
+A new `.mm-tab` mode or a filter pill is proved by checking the rendered orgs are the RIGHT ones — a bare
+count passes while showing the wrong 13. Compute the expectation in-page from the same JSON the map reads:
+    const exp = await p.evaluate(async () => {
+      const a = await (await fetch('data/grantees_attributes.json')).json();
+      const has = {}; (a.women || []).forEach(w => { has[String(w.org_id)] = true; });
+      return { total: Object.keys(has).length,
+               names: (a.orgs || []).filter(o => has[String(o.org_id)] && o.has_geometry).map(o => o.name) };
+    });
+- **Expected count is (matching records ∧ `has_geometry`), and it is usually SMALLER than the record count.**
+  77 orgs carry attributes, only 36 have coordinates, so every data-driven filter silently drops the
+  geometry-less ones (women-led: 19 orgs, 13 on the map; one org id can even be synthetic `A*`). Print both
+  numbers in the probe output — "the mode shows too few" is normally the data, not the filter.
+- Rendered count: `document.querySelectorAll('.org-pin-wrap').length` + Σ(the number in each
+  `.grantee-cluster`). Rendered NAMES: the `.org-tip-name` tooltip texts — clustered members have no tooltip
+  in the DOM, so use them as a SUBSET assertion (every visible name must be in the expected set; an empty
+  stray list is the pass condition), never as an equality one.
+- Then the composition + memory trio: `#commClear` → 0 orgs (the mode term cannot be bypassed by pill churn),
+  `#commSelectAll` → back to the expected count with no stray name, `page.reload()` → same mode
+  (`localStorage['fff.mapMode']`, `.mm-tab.active`, body class) and same count, switch back to Map View →
+  the full 36. After every switch, exactly ONE `map-mode-*` class on `body`, and a mode's own panel/table
+  visibility flips with it (`#tab-evolution` only in evolution).
+
+## Verifying a boundary (polygon) click scope
+A polygon click re-scopes the right-panel aggregates, so the probe must prove WHICH polygon it hit — the pane
+paths carry no name and are indistinguishable by shape.
+- **Map path index → geojson feature index.** Every boundary layer is built with `L.geoJson(geojson, …)`,
+  which preserves feature order, and the loader stashes the raw file on a global (`window.json_District`,
+  `json_Province`, `json_LocalLevel`, `json_Chure`, `json_Nepal`). So the Nth
+  `.leaflet-pane_District-pane path` is `window.json_District.features[N]`: read the expected name from the
+  geojson, `page.mouse.click` the centre of that path's `getBoundingClientRect()`, then ASSERT the panel
+  summary (`#aggOverview`) names that same polygon. That last assertion is what validates the index mapping —
+  without it a wrong-index click looks like a feature bug.
+- **Click the real element with a real pointer** (`page.mouse.click(cx, cy)` at the path's bbox centre).
+  Leaflet handles clicks through its own DOM listener; a synthetic `new MouseEvent('click')` on the SVG path
+  is unreliable for paths.
+- **Recompute the expectation in page context** from `Grantees.geojson` + `grantees_attributes.json` with
+  your own copy of the point-in-polygon test, then compare label-by-label against `window.chartPie.data`,
+  `window.chartBar.data` and the invested/flow instances — a count-only assertion passes on the wrong orgs.
+- **Prove chart COLOURS by sampling the canvas — not by eye, and not only with an image reviewer.** A chart
+  can hold the right data and still paint black (a missing `backgroundColor` renders the translucent-black
+  default). `getImageData` + a tolerance count is deterministic:
+  ```js
+  const count = (el, t, tol) => { const d = el.getContext('2d').getImageData(0, 0, el.width, el.height).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) { if (d[i + 3] > 200 && Math.abs(d[i] - t[0]) <= tol &&
+      Math.abs(d[i + 1] - t[1]) <= tol && Math.abs(d[i + 2] - t[2]) <= tol) n++; }
+    return n; };
+  ```
+  Assert the expected slice colours are non-zero AND the near-black count is 0. The ratio of the two counts
+  should track the data ratio (26 LoA : 10 DBG → ~2.6:1 measured), which is what catches a colour map keyed
+  by the wrong axis. Also assert a pie and its companion bar report the same labels/data/colours (one
+  `renderAggregates` map feeds both), and re-check both after a scope click.
+- **Clear path:** clicking empty map must restore the national totals (36 orgs) AND reset the previous
+  polygon's highlight (stroke weight/colour back to the layer default); assert no `map-mode-*` class changed.
+- `#rightPanel` is collapsed by default and a polygon click opens it (user rule), so assert it is expanded
+  after the click — and open any panel you need manually before taking a screenshot, or the image shows the
+  bare map.
+
 ## Hover verification (cluster vs individual marker)
 Both hovers are DOM-only — assert on the popup, not on Leaflet events. Probe: `scripts/probe_hover.js`.
 - **Cluster:** `page.hover('.grantee-cluster')`. That class sits on an inner div; the mouseover bubbles
@@ -156,15 +219,19 @@ Both hovers are DOM-only — assert on the popup, not on Leaflet events. Probe: 
   Hover by selector: `page.hover('.org-pin-wrap >> nth=' + i)`, and skip pins whose `read()` returns null.
 - **A specific org's pin may be inside a cluster** — a fresh load renders only ~7 pins, so hovering at
   random cannot reach a chosen org (e.g. one that is women-led). Options, cheapest first: click the org's
-  row in the left DataTable — the row-click handler zoom-pans via `clusters_Grantees.zoomToShowLayer(...)`,
-  which breaks the pin out of its cluster, so the probe can hover/measure it straight away; then click
+  row in the left DataTable — the row click centres the map on the org at z13 but does NOT force its pin out of the cluster,
+  so an org in dense country must still be separated by clicking its cluster icon; then click
   clusters / zoom-in until the target area separates, or assert on the SHARED card instead (`#aggregate`
   gets `bio_table_generator`'s exact HTML) and state plainly that the marker/cluster popups render the same
   generator. Never claim a popup screenshot you did not get.
-- **That row click IS the zoom assertion** — after clicking an org's row, the nearest `.org-pin-wrap` rect
-  centre to the `#map` rect centre reads ~0 px, rendered pins go 7 → 5 and clusters 7 → 1, and that org's
-  `.org-tip-name` tooltip appears (it did not exist while clustered). A second click on an
-  already-visible pin must stay centred — the callback re-centres rather than skipping.
+- **That row click IS the zoom assertion** — the handler is ONE deterministic call now
+  (`map.setView(layer.getLatLng(), Math.max(map.getZoom(), 13))`, no cluster API), so assert the nearest
+  `.org-pin-wrap` **or `.grantee-cluster`** rect centre to the `#map` rect centre reads ~0-10 px. Which one
+  you get depends on the location: an isolated org lands as a PIN at 0 px with its `.org-tip-name` tooltip
+  (absent while clustered), while a dense-city org is legitimately still a CLUSTER at z13 — the cluster icon
+  IS the target, not a failure. Pin/cluster COUNTS are not fixed numbers (7 → 6 pins / 7 → 2 clusters
+  observed); assert the CENTRE, not the counts, and assert the repeat click is stable rather than
+  'a pin appears'.
 - **Measure MARKERS, not tooltip elements, when checking position.** `.org-tip-name` tooltips live in
   `.leaflet-tooltip-pane`, so `tip.closest('.leaflet-marker-icon')` is null and `tip.parentElement` is the
   PANE — the "distance from map centre" you then compute is meaningless and reads as a broken feature while

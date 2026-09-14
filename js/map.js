@@ -27,14 +27,17 @@
     }
     function updateLegendPosition() {
         var legend = document.getElementById('commodityLegend');
-        var rightPanel = document.getElementById('rightPanel');
+        var leftPanel = document.getElementById('leftPanel');
         var bottomPanel = document.getElementById('bottomPanel');
         if (!legend) return;
-        var rightCollapsed = rightPanel && rightPanel.classList.contains('collapsed');
+        var leftCollapsed = leftPanel && leftPanel.classList.contains('collapsed');
         var bottomCollapsed = bottomPanel && bottomPanel.classList.contains('collapsed');
-        var panelW = rightPanel ? rightPanel.offsetWidth : 340;
+        var panelW = leftPanel ? leftPanel.offsetWidth : 280;
         var inset = 10, gap = 10;
-        legend.style.right = ((rightCollapsed ? 0 : panelW + inset) + gap) + 'px';
+        // The legend lives on the LEFT and rides the LEFT panel: it clears that panel while it is open and
+        // tucks to the screen edge once it collapses. The right panel no longer moves it.
+        legend.style.right = 'auto';
+        legend.style.left = ((leftCollapsed ? 0 : panelW + inset) + gap) + 'px';
         legend.style.bottom = bottomCollapsed ? '20px' : '360px';
     }
     if (document.readyState !== 'loading') updateLegendPosition();
@@ -216,10 +219,26 @@
         updateEvoChart();
     }
 
+    // Grant amount per fiscal year: each organization's total LoA + DBG contract value (USD), booked in
+    // the year the organization FIRST appears - the same rule the "new grantees" column uses. It is not a
+    // disbursement-per-year figure; the served files have no per-contract dates.
+    function usd(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
+    function evoAmountByYear() {
+        var out = FISCAL_LABELS.map(function() { return 0; });
+        if (!moneyBySN) { return out; }        // the geocsv loads asynchronously; we re-render when it lands
+        Object.keys(evoFirstFiscalByOrg || {}).forEach(function(orgId) {
+            var i = FISCAL_LABELS.indexOf(evoFirstFiscalByOrg[orgId]);
+            var m = moneyBySN[String(orgId)];
+            if (i >= 0 && m) { out[i] += (m.loa || 0) + (m.dbg || 0); }
+        });
+        return out;
+    }
+
     function renderEvoTable(){
         var tbody = document.querySelector('#evoTable tbody');
         if (!tbody || !evoPerYear) return;
         tbody.innerHTML = '';
+        var amt = evoAmountByYear();
         FISCAL_LABELS.forEach(function(lbl, idx){
             var row = evoPerYear[idx];
             var tr = document.createElement('tr');
@@ -229,7 +248,7 @@
                 '<td class="num">'+row.newGrantees+'</td>'+
                 '<td class="num">'+row.newLocations+'</td>'+
                 '<td class="num">'+row.newEnterprises+'</td>'+
-                '<td class="num"></td>';
+                '<td class="num">'+(amt[idx] ? usd(amt[idx]) : '—')+'</td>';
             tbody.appendChild(tr);
         });
         // summary for selected range (distinct union is already per-year first-appearance sum within range == total new in range)
@@ -238,11 +257,15 @@
         var sumEl = document.getElementById('evoSummary');
         if (sumEl) {
             var rangeLabel = (evoFromIdx===evoToIdx) ? FISCAL_LABELS[evoFromIdx] : FISCAL_LABELS[evoFromIdx]+' → '+FISCAL_LABELS[evoToIdx];
-            sumEl.innerHTML = 'Selected: <strong>'+rangeLabel+'</strong> — <strong>'+sumG+'</strong> new grantees · <strong>'+sumL+'</strong> new locations · <strong>'+sumE+'</strong> new enterprises/products · Grant amount: <strong></strong><br/><span style="color:#5a6d80">Map shows grantees whose first grant falls within the selected range.</span>';
+            var sumA = 0;
+            for (var j = evoFromIdx; j <= evoToIdx; j++) { sumA += amt[j]; }
+            sumEl.innerHTML = 'Selected: <strong>'+rangeLabel+'</strong> — <strong>'+sumG+'</strong> new grantees · <strong>'+sumL+'</strong> new locations · <strong>'+sumE+'</strong> new enterprises/products · Grant amount: <strong>'+usd(sumA)+'</strong><br/><span style="color:#5a6d80">Map shows grantees whose first grant falls within the selected range. Amount = total LoA + DBG contract value (USD) of the organizations first appearing in those years, not the year it was disbursed.</span>';
         }
         // ticks highlight
         var tickEls = document.querySelectorAll('#tsTicks span');
         tickEls.forEach(function(el,i){ el.classList.toggle('active', i>=evoFromIdx && i<=evoToIdx); });
+        // the geocsv can land after the table is first built - re-render the amounts once it does
+        if (!moneyBySN) { csvReady.then(function() { renderEvoTable(); }); }
     }
 
     function updateEvoChart(){
@@ -665,6 +688,14 @@
                     orgTypeBySN[String(o.org_id)] = o.organization_type;
                 }
             });
+            var districtBySN = {}, provBySN = {}, muniBySN = {};
+            (attr.orgs || []).forEach(function(o) {
+                if (!o) { return; }
+                var k = String(o.org_id);
+                if (o.district) { districtBySN[k] = String(o.district).trim(); }
+                if (o.province) { provBySN[k] = String(o.province).trim(); }
+                if (o.municipality) { muniBySN[k] = String(o.municipality).trim(); }
+            });
             // Index the CSV-derived tables by org_id (== S_N) so each marker can
             // carry its grants (enterprise classification / subcategory), its
             // restoration records (area direct + contributed, people benefited)
@@ -689,6 +720,9 @@
                 var p = l.feature.properties;
                 var sn = String(p.S_N);
                 p.organization_type = orgTypeBySN[sn] || null;
+                p.district = districtBySN[sn] || null;
+                p.province = provBySN[sn] || null;
+                p.municipality = muniBySN[sn] || null;
                 p.grants = grantsByOrg[sn] || [];
                 p.restoration = restorationByOrg[sn] || [];
                 p.women = womenByOrg[sn] || [];
@@ -724,6 +758,8 @@
             try { if (typeof refreshCommodityIcons === 'function') refreshCommodityIcons(layer_Grantees); } catch(e){ console.warn('refresh icons failed', e); }
             // Build floating commodity legend (overlay on map)
             try { buildCommodityLegend(); } catch(e){ console.warn('legend build failed', e); }
+            // National aggregate view on load (the pie/bar are empty placeholders otherwise).
+            try { renderAggregates(null); renderInvestment(null); renderSankey(null); } catch(e) { console.warn('aggregate render failed', e); }
             // Restore the map mode chosen last visit - must run after features + p.women exist.
             try { setMapMode(localStorage.getItem('fff.mapMode') || 'overview'); } catch (e) {}
         });
@@ -1046,6 +1082,7 @@
             pane: 'pane_District',
             color: '#3388ff',
             weight: 1.5,
+            nameField: 'DISTRICT',
             // project_area: 'y' (inside the Forest Fruit & Flora project area,
             // 13 feats) is HIGHLIGHTED green; 'n' (64 feats) is dimmed so the
             // project-area districts stand out on the satellite basemap.
@@ -1064,6 +1101,7 @@
             pane: 'pane_LocalLevel',
             color: '#ffd400',
             weight: 3,
+            nameField: 'GaPa_NaPa',
             dashArray: '7 4',
             fillOpacity: 0.06,
             fill: true
@@ -1074,7 +1112,8 @@
             label: 'Province boundaries',
             pane: 'pane_Province',
             color: '#e67e22',
-            weight: 2
+            weight: 2,
+            nameField: 'Province',
         }, {
             varName: 'json_Chure',
             layerVar: 'layer_Chure',
@@ -1083,6 +1122,7 @@
             pane: 'pane_Chure',
             color: '#27ae60',
             weight: 1.5,
+            nameField: null,
             fillOpacity: 0.12,
             fill: true
         }, {
@@ -1092,19 +1132,13 @@
             label: 'Country boundary (Nepal)',
             pane: 'pane_Nepal',
             color: '#ffffff',
-            weight: 3
+            weight: 3,
+            nameField: null,
         }];
 
         // Clicking a boundary writes a short overview into the Aggregate panel
         // (#aggOverview), leaving the placeholder charts below it untouched.
-        function showOverview(title, msg) {
-            var el = document.getElementById('aggOverview');
-            if (!el) { return; }
-            el.innerHTML = '<p class="mb-0"><strong>' + title + '</strong><br />' +
-                '<span class="text-muted">' + msg + '</span></p>';
-            var card = el.closest('.card');
-            if (card) { card.style.display = ''; }
-        }
+        function showOverview(title, msg) { setAggOverview(title, msg); }
 
         Promise.all(specs.map(function(spec) {
             return fetch(spec.url)
@@ -1123,29 +1157,6 @@
                             if (spec.styleFn) { return spec.styleFn(feature, base); }
                             return base;
                         },
-                        onEachFeature: function(feature, lyr) {
-                            lyr.on('click', function() {
-                                var n = (geojson && geojson.features) ? geojson.features.length : null;
-                                var msg;
-                                if (spec.layerVar === 'layer_District') {
-                                    var y = 0, nn = 0;
-                                    (geojson.features || []).forEach(function(f) {
-                                        var pa = f.properties && f.properties.project_area;
-                                        if (pa === 'y') { y++; } else { nn++; }
-                                    });
-                                    msg = n + ' districts. ' + y + ' lie inside a Forest Fruit & Flora project area (highlighted green); ' + nn + ' are dimmed.';
-                                } else if (spec.layerVar === 'layer_LocalLevel') {
-                                    msg = n + ' local levels (Gaunpalika / Municipality) inside the project area.';
-                                } else if (spec.layerVar === 'layer_Province') {
-                                    msg = n + ' provinces, drawn out. The per-province grantee breakdown hasn’t been loaded, but the outlines are here.';
-                                } else if (spec.layerVar === 'layer_Chure') {
-                                    msg = 'The Chure (Terai arc) physiographic belt, dissolved into a single boundary.';
-                                } else {
-                                    msg = 'The national boundary. Once the dataset lands, this panel will show country-level totals instead of this placeholder.';
-                                }
-                                showOverview(spec.label, msg);
-                            });
-                        }
                     });
                     window[spec.layerVar] = layer;
                     layerControl.addOverlay(layer, spec.label);
@@ -1196,6 +1207,339 @@
         });
     })();
 
+    // ---- Aggregate scope: point-in-polygon membership + scoped charts ----
+    var selectedScope = null;
+    var PROV_CODE = { 1: 'Koshi', 2: 'Madhesh', 3: 'Bagmati', 4: 'Gandaki', 5: 'Lumbini', 6: 'Karnali', 7: 'Sudurpashchim' };
+
+    // LatLngs come back as [[ring]] for Polygon and [[[ring]]] for MultiPolygon - flatten to a ring list.
+    function polyRings(layer) {
+        var g = (layer && layer.getLatLngs) ? layer.getLatLngs() : [];
+        if (!g.length) { return []; }
+        return (g[0] && g[0][0] && g[0][0].lat !== undefined) ? g : g.reduce(function(a, x) { return a.concat(x); }, []);
+    }
+    // ponytail: ray casting on exterior rings only (these boundary files have no holes).
+    function pointInRings(latlng, rings) {
+        var x = latlng.lng, y = latlng.lat, inside = false;
+        for (var r = 0; r < rings.length; r++) {
+            var ring = rings[r];
+            for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+                var xi = ring[i].lng, yi = ring[i].lat, xj = ring[j].lng, yj = ring[j].lat;
+                if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) { inside = !inside; }
+            }
+        }
+        return inside;
+    }
+    // Markers inside a boundary polygon (a layer), or all markers when layer is null.
+    function markersIn(layer) {
+        var out = [], rings = layer ? polyRings(layer) : null;
+        layer_Grantees.eachLayer(function(l) {
+            if (!layer || pointInRings(l.getLatLng(), rings)) { out.push(l); }
+        });
+        return out;
+    }
+    // Canonical district name from geometry (77 districts cover all of Nepal).
+    function districtOf(latlng) {
+        var hit = null;
+        if (window.layer_District) {
+            window.layer_District.eachLayer(function(l) {
+                if (!hit && pointInRings(latlng, polyRings(l))) { hit = (l.feature.properties || {}).DISTRICT || null; }
+            });
+        }
+        return hit;
+    }
+    function setAggOverview(title, msg) {
+        var el = document.getElementById('aggOverview');
+        if (!el) { return; }
+        el.innerHTML = '<p class="mb-0"><strong>' + title + '</strong><br />' +
+            '<span class="text-muted">' + msg + '</span></p>';
+        var card = el.closest('.card');
+        if (card) { card.style.display = ''; }
+    }
+    function openRightPanel() {
+        var rp = document.getElementById('rightPanel');
+        if (!rp || !rp.classList.contains('collapsed')) { return; }
+        rp.classList.remove('collapsed');
+        var arr = document.getElementById('rightPanelArrow');
+        if (arr) { arr.textContent = '\u2039'; }
+        setTimeout(function() { if (map && map.invalidateSize) { map.invalidateSize(); } }, 320);
+    }
+    // Type-of-grant pie + commodity bar for a set of markers.
+    function renderAggregates(scope, ms) {
+        ms = ms || markersIn(scope && scope.layer);
+        var type = {}, comm = {}, grants = 0;
+        ms.forEach(function(l) {
+            var p = l.feature.properties;
+            grants += (p.grants || []).length;
+            var t = p.Type_of_Grant || 'Unknown';
+            type[t] = (type[t] || 0) + 1;
+            (p.subcategories || []).forEach(function(c) { comm[c] = (comm[c] || 0) + 1; });
+        });
+        var TYPE_COLOR = { 'LoA': '#0070b6', 'DBG': '#e67e22' };
+        var typeKeys = Object.keys(type);
+        var typeData = typeKeys.map(function(k) { return type[k]; });
+        var typeColors = typeKeys.map(function(k) { return TYPE_COLOR[k] || '#9aa7b1'; });
+        if (window.chartPie) {
+            window.chartPie.data.labels = typeKeys;
+            window.chartPie.data.datasets[0].data = typeData;
+            window.chartPie.data.datasets[0].backgroundColor = typeColors;
+            window.chartPie.update();
+        }
+        // Same numbers as the pie, as bars - LoA vs DBG is easier to compare in bars.
+        if (window.chartTypeBar) {
+            window.chartTypeBar.data.labels = typeKeys;
+            window.chartTypeBar.data.datasets[0].data = typeData;
+            window.chartTypeBar.data.datasets[0].backgroundColor = typeColors;
+            window.chartTypeBar.update();
+        }
+        var ck = Object.keys(comm).sort(function(a, b) { return comm[b] - comm[a]; })
+            .filter(function(k) { return k !== 'Unclassified'; });
+        if (window.chartBar) {
+            window.chartBar.data.labels = ck;
+            window.chartBar.data.datasets[0].data = ck.map(function(k) { return comm[k]; });
+            window.chartBar.update();
+        }
+        setAggOverview(scope ? (scope.kind + ' \u2014 ' + scope.label) : 'All Nepal',
+            ms.length + ' organizations, ' + grants + ' grants' + (scope ? '' : ' (nationwide)'));
+        return { markers: ms, type: type, comm: comm };
+    }
+    function setScope(scope) {
+        if (selectedScope && selectedScope.layerVar && window[selectedScope.layerVar]) {
+            window[selectedScope.layerVar].resetStyle(selectedScope.layer);
+        }
+        selectedScope = scope;
+        if (scope.layer && scope.layer.setStyle) {
+            scope.layer.setStyle({ weight: 3, color: '#0070b6', fillOpacity: 0.25 });
+        }
+        var ms = markersIn(scope.layer);
+        renderAggregates(scope, ms);
+        if (typeof renderInvestment === 'function') { renderInvestment(scope, ms); }
+        if (typeof renderSankey === 'function') { renderSankey(scope, ms); }
+        openRightPanel();
+    }
+    function clearScope() {
+        if (selectedScope && selectedScope.layerVar && window[selectedScope.layerVar]) {
+            window[selectedScope.layerVar].resetStyle(selectedScope.layer);
+        }
+        selectedScope = null;
+        var ms = markersIn(null);
+        renderAggregates(null, ms);
+        if (typeof renderInvestment === 'function') { renderInvestment(null, ms); }
+        if (typeof renderSankey === 'function') { renderSankey(null, ms); }
+    }
+    // Per-org money comes from the served Grantees.combined.geocsv (per-org finance columns, repeated on
+    // every grant row) - first row per S_N wins, the same dedupe make_geocsv.py/summarise_investment.py used.
+    // Whole-text CSV parse: cell values in this file contain newlines and commas inside quotes,
+    // so line-by-line splitting loses rows.
+    function parseCsv(text) {
+        var rows = [], row = [], cur = '', q = false;
+        for (var i = 0; i < text.length; i++) {
+            var ch = text.charAt(i);
+            if (q) {
+                if (ch === '"') { if (text.charAt(i + 1) === '"') { cur += '"'; i++; } else { q = false; } }
+                else { cur += ch; }
+            } else if (ch === '"') { q = true; }
+            else if (ch === ',') { row.push(cur); cur = ''; }
+            else if (ch === '\n') { row.push(cur); cur = ''; rows.push(row); row = []; }
+            else if (ch !== String.fromCharCode(13)) { cur += ch; }
+        }
+        if (cur.length || row.length) { row.push(cur); rows.push(row); }
+        return rows.filter(function(r) { return r.length > 1; });
+    }
+    var moneyBySN = {};
+    var csvReady = fetch('data/Grantees.combined.geocsv')
+        .then(function(r) { return r.text(); })
+        .then(function(txt) {
+            var rows = parseCsv(txt.replace(/^\uFEFF/, ''));
+            if (!rows.length) { return moneyBySN; }
+            var ix = {}, head = rows[0];
+            head.forEach(function(h, i) { ix[h.trim()] = i; });
+            rows.slice(1).forEach(function(c) {
+                var sn = (c[ix.S_N] || '').trim();
+                if (!sn || moneyBySN[sn]) { return; }
+                moneyBySN[sn] = {
+                    loa: parseFloat(c[ix.loa_total_USD_org]) || 0,
+                    dbg: parseFloat(c[ix.dbg_total_USD_org]) || 0,
+                    cls: (c[ix.enterprise_classification] || '').trim() || 'Unclassified'
+                };
+            });
+            return moneyBySN;
+        })
+        .catch(function() { return moneyBySN; });
+
+    // LoA/DBG stacked bar per enterprise classification, for the markers in scope.
+    function renderInvestment(scope, ms) {
+        var el = document.getElementById('chartInvestment');
+        if (!el || typeof Chart === 'undefined') { return; }
+        ms = ms || markersIn(scope && scope.layer);
+        csvReady.then(function(money) {
+            var g = {};
+            // National view = every org in the file (money exists for orgs with no coordinates too, and
+            // the published total 2,288,256 USD includes them). A polygon scope can only see the orgs
+            // whose marker falls inside it - that is the honest split, not a bug.
+            var want = null;
+            if (scope) {
+                want = {};
+                ms.forEach(function(l) { want[String(l.feature.properties.S_N)] = true; });
+            }
+            Object.keys(money).forEach(function(sn) {
+                if (want && !want[sn]) { return; }
+                var m = money[sn];
+                if (!g[m.cls]) { g[m.cls] = { loa: 0, dbg: 0 }; }
+                g[m.cls].loa += m.loa;
+                g[m.cls].dbg += m.dbg;
+            });
+            var keys = Object.keys(g).sort(function(a, b) { return (g[b].loa + g[b].dbg) - (g[a].loa + g[a].dbg); });
+            var loa = keys.map(function(k) { return g[k].loa; });
+            var dbg = keys.map(function(k) { return g[k].dbg; });
+            if (window.chartInvestment && window.chartInvestment.data) {
+                window.chartInvestment.data.labels = keys;
+                window.chartInvestment.data.datasets[0].data = loa;
+                window.chartInvestment.data.datasets[1].data = dbg;
+                window.chartInvestment.update();
+                return;
+            }
+            window.chartInvestment = new Chart(el, {
+                type: 'bar',
+                data: { labels: keys, datasets: [
+                    { label: 'LoA USD', data: loa, backgroundColor: '#0070b6' },
+                    { label: 'DBG USD', data: dbg, backgroundColor: '#e67e22' }
+                ] },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: true },
+                        tooltip: { callbacks: { label: function(c) { return c.dataset.label + ': $' + Number(c.parsed.y).toLocaleString(); } } }
+                    },
+                    scales: { x: { stacked: true, ticks: { color: '#1a3c5e', font: { size: 10 } } },
+                              y: { stacked: true, beginAtZero: true, ticks: { color: '#1a3c5e' } } }
+                }
+            });
+        });
+    }
+
+    // Sankey: FFF -> Province -> District -> Palika (one unit = one organization), scoped to the selection.
+    function renderSankey(scope, ms) {
+        var svgEl = document.getElementById('chartSankey');
+        if (!svgEl || typeof d3 === 'undefined' || typeof d3.sankey !== 'function') { return; }
+        ms = ms || markersIn(scope && scope.layer);
+        // fixed width, not the panel's: the .sankey-wrap scroller gives it the room (see css/map.css)
+        var w = 620;
+        var h = 380;
+        var svg = d3.select(svgEl).attr('width', w).attr('height', h);
+        svg.selectAll('*').remove();
+        if (!ms.length) {
+            svg.append('text').attr('x', w / 2).attr('y', h / 2).attr('text-anchor', 'middle')
+                .attr('fill', '#999').style('font', '13px Arial, Helvetica, sans-serif')
+                .text('No organizations in this area');
+            return;
+        }
+        var SEP = '\u0000';
+        // ponytail: cap every level and only draw the palika column when a district/palika is in focus -
+        // 4 levels x ~30 nodes in a 310px panel is an unreadable tangle (verified by screenshot).
+        var distCount = {}, palCount = {}, rows = [];
+        ms.forEach(function(l) {
+            var pr = l.feature.properties;
+            var prov = pr.province || 'Unassigned';
+            var dist = districtOf(l.getLatLng()) || pr.district || 'Unassigned';
+            var pal = pr.municipality || 'Unassigned';
+            distCount[dist] = (distCount[dist] || 0) + 1;
+            palCount[pal] = (palCount[pal] || 0) + 1;
+            rows.push([prov, dist, pal]);
+        });
+        function topOf(counts, n) {
+            var keep = {};
+            Object.keys(counts).sort(function(a, b) { return counts[b] - counts[a]; }).slice(0, n)
+                .forEach(function(k) { keep[k] = k; });
+            return keep;
+        }
+        var distOf = topOf(distCount, 12);
+        var palOf = topOf(palCount, 10);
+        var withPalika = !!(scope && (scope.kind === 'District' || scope.kind === 'Local Level'));
+        // Node keys are level-prefixed: "Unassigned" can legitimately be province, district AND palika
+        // at once, and a same-name node pair makes d3-sankey throw "circular link".
+        var names = [{ name: 'FFF' }], index = { 'L0\u0000FFF': 0 };
+        function nodeOf(level, name) {
+            var key = level + SEP + name;
+            if (index[key] === undefined) { index[key] = names.length; names.push({ name: name }); }
+            return index[key];
+        }
+        var counts = {};
+        rows.forEach(function(t) {
+            var dist = distOf[t[1]] || 'Other districts';
+            var chain = [[0, 'FFF', t[0]], [1, t[0], dist]];
+            if (withPalika) { chain.push([2, dist, palOf[t[2]] || 'Other palikas']); }
+            chain.forEach(function(triple) {
+                var a = nodeOf('L' + triple[0], triple[1]);
+                var b = nodeOf('L' + (triple[0] + 1), triple[2]);
+                var k = a + SEP + b;
+                counts[k] = (counts[k] || 0) + 1;
+            });
+        });
+        var nodes = names.map(function(n) { return { name: n.name }; });
+        var links = Object.keys(counts).map(function(k) {
+            var p = k.split(SEP);
+            return { source: parseInt(p[0], 10), target: parseInt(p[1], 10), value: counts[k] };
+        });
+        // reserve label gutters left and right so no node label gets clipped by the panel edge
+        var sankey = d3.sankey().nodeWidth(12).nodePadding(8).extent([[62, 10], [w - 62, h - 10]]);
+        var graph = sankey({ nodes: nodes.map(function(d) { return { name: d.name }; }),
+                             links: links.map(function(d) { return { source: d.source, target: d.target, value: d.value }; }) });
+        var color = d3.scaleOrdinal(d3.schemeTableau10);
+        var maxDepth = d3.max(graph.nodes, function(d) { return d.depth; }) || 0;
+        svg.append('g').selectAll('path').data(graph.links).join('path')
+            .attr('d', d3.sankeyLinkHorizontal())
+            .attr('stroke', function(d) { return color(d.source.name); })
+            .attr('stroke-width', function(d) { return Math.max(1, d.width); })
+            .attr('fill', 'none').attr('opacity', 0.55);
+        var g = svg.append('g').selectAll('g').data(graph.nodes).join('g');
+        g.append('rect')
+            .attr('x', function(d) { return d.x0; }).attr('y', function(d) { return d.y0; })
+            .attr('width', function(d) { return d.x1 - d.x0; })
+            .attr('height', function(d) { return Math.max(1, d.y1 - d.y0); })
+            .attr('fill', function(d) { return d.name === 'FFF' ? '#0070b6' : color(d.name); });
+        g.append('text')
+            // labels sit in the gutters: to the right of every column except the last, which labels left
+            .attr('x', function(d) { return d.depth === maxDepth ? d.x0 - 5 : d.x1 + 5; })
+            .attr('text-anchor', function(d) { return d.depth === maxDepth ? 'end' : 'start'; })
+            .attr('y', function(d) { return (d.y0 + d.y1) / 2; }).attr('dy', '0.35em')
+            .attr('font', '10px Arial, Helvetica, sans-serif').attr('fill', '#1a3c5e')
+            .text(function(d) { var n = String(d.name); return (n.length > 15 ? n.slice(0, 14) + '\u2026' : n) + ' (' + d.value + ')'; });
+        g.append('title').text(function(d) { return String(d.name) + ': ' + d.value + ' organizations'; });
+    }
+    // The boundary panes stack Nepal > Chure > Province > LocalLevel > District, so hit-testing would
+    // always land on Nepal. Pick the finest VISIBLE boundary containing the click instead - and because
+    // the boundary pills add/remove layers from the map, turning District off makes Province scopeable.
+    function scopeCandidateAt(latlng) {
+        var order = ['layer_LocalLevel', 'layer_District', 'layer_Province'];
+        var kinds = { layer_LocalLevel: 'Local Level', layer_District: 'District', layer_Province: 'Province' };
+        for (var i = 0; i < order.length; i++) {
+            var lyr = window[order[i]];
+            if (!lyr || !map.hasLayer(lyr)) { continue; }
+            var hit = null;
+            lyr.eachLayer(function(l) {
+                if (!hit && pointInRings(latlng, polyRings(l))) { hit = l; }
+            });
+            if (!hit) { continue; }
+            var pr = (hit.feature && hit.feature.properties) || {};
+            var nm = (order[i] === 'layer_LocalLevel') ? pr.GaPa_NaPa : (order[i] === 'layer_District' ? pr.DISTRICT : pr.Province);
+            if (nm !== null && nm !== undefined && /^[0-9]+$/.test(String(nm))) { nm = PROV_CODE[nm] || String(nm); }
+            return { kind: kinds[order[i]], label: nm ? String(nm) : kinds[order[i]], layer: hit, layerVar: order[i] };
+        }
+        return null;
+    }
+    map.on('click', function(ev) {
+        // ignore clicks that landed on a marker, cluster, tooltip or map control
+        var t = ev.originalEvent ? ev.originalEvent.target : null;
+        if (t && t.closest && t.closest('.leaflet-marker-icon, .leaflet-tooltip, .leaflet-popup, .leaflet-control')) { return; }
+        var c = scopeCandidateAt(ev.latlng);
+        if (!c) {
+            if (selectedScope) { clearScope(); }          // clicked outside every boundary = national view
+            return;
+        }
+        if (selectedScope && selectedScope.layer === c.layer) { clearScope(); return; }   // click again = clear
+        setScope(c);
+    });
+
     // Aggregate panel: empty placeholder charts (no real data yet).
     // Chart.js, d3 and d3.sankey are loaded from js/vendor/* in <head>.
     (function() {
@@ -1204,7 +1548,18 @@
         if (ctxPie && hasChart) {
             window.chartPie = new Chart(ctxPie, {
                 type: 'pie',
-                data: { labels: [], datasets: [{ data: [] }] }
+                data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderColor: '#ffffff', borderWidth: 2 }] },
+                options: { responsive: true, plugins: { legend: { display: true } } }
+            });
+        }
+        var ctxTypeBar = document.getElementById('chartTypeBar');
+        if (ctxTypeBar && hasChart) {
+            window.chartTypeBar = new Chart(ctxTypeBar, {
+                type: 'bar',
+                data: { labels: [], datasets: [{ label: 'Organizations', data: [], backgroundColor: [] }] },
+                options: { responsive: true, plugins: { legend: { display: false } },
+                           scales: { x: { ticks: { color: '#1a3c5e', font: { size: 10 } } },
+                                     y: { beginAtZero: true, ticks: { color: '#1a3c5e' } } } }
             });
         }
         var ctxBar = document.getElementById('chartBar');
@@ -1215,56 +1570,8 @@
             });
         }
         var svgEl = document.getElementById('chartSankey');
-        if (svgEl && typeof d3 !== 'undefined' && typeof d3.sankey === 'function') {
-            var sw = (svgEl.parentElement && svgEl.parentElement.clientWidth) || 400;
-            var sh = 200;
-            var margin = { top: 8, right: 8, bottom: 8, left: 8 };
-            // Sankey generator set up with margins; empty until real data arrives.
-            var sankey = d3.sankey()
-                .nodeWidth(15)
-                .nodePadding(10)
-                .extent([[margin.left, margin.top], [sw - margin.right, sh - margin.bottom]]);
-            var svg = d3.select(svgEl)
-                .attr('width', sw)
-                .attr('height', sh);
-            svg.append('text')
-                .attr('x', sw / 2)
-                .attr('y', sh / 2)
-                .attr('text-anchor', 'middle')
-                .attr('fill', '#999')
-                .style('font', '13px Arial, Helvetica, sans-serif')
-                .text('No grant flow data yet');
-        }
-    })();
-
-    // Investment by enterprise — data generated by ../../../summarise_investment.py
-    (function() {
-        var el = document.getElementById('chartInvestment');
-        if (!el || typeof Chart === 'undefined') return;
-        fetch('data/investment_by_enterprise.json')
-            .then(function(r) { return r.json(); })
-            .then(function(d) {
-                var g = d.groups || [];
-                window.chartInvestment = new Chart(el, {
-                    type: 'bar',
-                    data: {
-                        labels: g.map(function(x) { return x.enterprise_classification; }),
-                        datasets: [
-                            { label: 'LoA USD', data: g.map(function(x) { return x.loa_usd; }), backgroundColor: '#0070b6' },
-                            { label: 'DBG USD', data: g.map(function(x) { return x.dbg_usd; }), backgroundColor: '#e67e22' }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: { display: true },
-                            tooltip: { callbacks: { label: function(c) { return c.dataset.label + ': $' + Number(c.parsed.y).toLocaleString(); } } }
-                        },
-                        scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }
-                    }
-                });
-            })
-            .catch(function() { /* JSON missing: leave the canvas blank */ });
+        // The sankey is drawn by renderSankey()/renderAggregates() once the features and the geocsv
+        // are in - nothing to draw here (the old "no data yet" placeholder was removed).
     })();
 
     // Build the left-panel Grantees list (DataTable) from the async grantee features.

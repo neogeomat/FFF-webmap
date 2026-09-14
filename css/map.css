@@ -138,6 +138,11 @@
             overflow-y: auto;
             flex: 1;
         }
+
+        /* The sankey is drawn 620px wide because four levels of Nepal place names are unreadable in
+           the panel's ~310px; this scroller keeps the rest of the panel layout untouched. */
+        .sankey-wrap { overflow-x: auto; }
+        #chartSankey { display: block; }
         
         .panel-header {
             font-size: 16px;
@@ -283,7 +288,8 @@
         .commodity-legend {
             position: fixed;
             bottom: 360px;
-            right: 360px;
+            left: 300px;
+            right: auto;
             width: 190px;
             max-height: 38vh;
             z-index: 1001;
@@ -299,7 +305,7 @@
             font: 11px/13px Arial, Helvetica, sans-serif;
             color: #1a3c5e;
             height: auto;
-            transition: bottom 0.3s ease, right 0.3s ease;
+            transition: bottom 0.3s ease, left 0.3s ease;
         }
         .commodity-legend.collapsed .legend-content { display: none; }
         .commodity-legend.collapsed { height: auto; }
@@ -699,20 +705,28 @@
         .evo-table {
             width: 100%;
             border-collapse: collapse;
-            font: 12px/14px Arial, Helvetica, sans-serif;
+            table-layout: fixed;          /* 5 columns must fit the 340px panel — no nowrap overflow */
+            font: 11px/13px Arial, Helvetica, sans-serif;
         }
+        /* explicit widths so "Grant amount (USD)" is never pushed off the panel edge */
+        .evo-table th:nth-child(1), .evo-table td:nth-child(1) { width: 17%; }
+        .evo-table th:nth-child(2), .evo-table td:nth-child(2) { width: 14%; }
+        .evo-table th:nth-child(3), .evo-table td:nth-child(3) { width: 14%; }
+        .evo-table th:nth-child(4), .evo-table td:nth-child(4) { width: 27%; }
+        .evo-table th:nth-child(5), .evo-table td:nth-child(5) { width: 28%; }
         .evo-table th {
             text-align: left;
             background: #f3f8fc;
             color: #1a3c5e;
             border: 1px solid #ced4da;
-            padding: 6px 6px;
-            font-size: 11px;
-            white-space: nowrap;
+            padding: 4px 4px;
+            font-size: 10px;
+            line-height: 1.2;
+            white-space: normal;          /* headers wrap instead of widening the table */
         }
         .evo-table td {
             border: 1px solid #ced4da;
-            padding: 6px 6px;
+            padding: 4px 4px;
             color: #1a3c5e;
             background: #ffffff;
         }

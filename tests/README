@@ -24,6 +24,12 @@ Run
     node tests/probe_mode_exclusive.js   # overview / evolution / women modes are mutually exclusive
     node tests/probe_scope_full.js       # polygon-click aggregates: PIP precedence, national totals
     node tests/probe_sankey_pip.js       # sankey province/palika come from PIP (no bare state codes, wards merged)
+    node tests/probe_sankey_interactive.js # the 6 column dropdowns: redraw on change, totals preserved
+    node tests/probe_layout_split.js      # map/panel split: legend hidden, 50% default, drag resize, Nepal refit
+    node tests/probe_investment_mode.js  # Investment map tab: panel hidden elsewhere, expands in-mode
+    node tests/probe_sankey_table.js    # the chains as a table under the charts (totals == chart roots)
+    node tests/probe_org_names.js      # display-name tidy: redundant brackets dropped, acronyms kept
+    node tests/probe_hover_unlink.js     # marker/cluster hover must NOT write the bottom panel
     node tests/probe_legend_pie.js       # legend placement + LoA/DBG pie & bar colours
     node tests/probe_evo_amount.js       # evolution grant-amount column adds up to the national total
     node tests/probe_evo_fit.js          # the evolution table fits inside the 340px panel

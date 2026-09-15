@@ -20,7 +20,10 @@ const { chromium } = require('playwright');
       pie: window.chartPie ? { labels: window.chartPie.data.labels, data: window.chartPie.data.datasets[0].data } : null,
       bar: window.chartBar ? { labels: window.chartBar.data.labels, data: window.chartBar.data.datasets[0].data } : null,
       inv: inv,
-      sankey: { rects: document.querySelectorAll('#chartSankey rect').length, links: document.querySelectorAll('#chartSankey path').length, labels: Array.from(document.querySelectorAll('#chartSankey text')).map(t => t.textContent) },
+      sankey: { rects: document.querySelectorAll('#chartSankey rect').length, links: document.querySelectorAll('#chartSankey path').length, labels: Array.from(document.querySelectorAll('#chartSankey text')).map(t => t.textContent),
+        // grouped by column so a check can target one stage (0 FFF, 1 Province, 2 District, 3 Palika)
+        cols: (() => { const t = Array.from(document.querySelectorAll('#chartSankey g > text')).map(el => ({ t: el.textContent, x: Math.round(+el.getAttribute('x')) }));
+          const xs = [...new Set(t.map(o => o.x))].sort((a, b) => a - b); return xs.map(x => t.filter(o => o.x === x).map(o => o.t)); })() },
       rightCollapsed: document.getElementById('rightPanel').classList.contains('collapsed')
     };
   });
@@ -34,7 +37,7 @@ const { chromium } = require('playwright');
   // Province names come from point-in-polygon: Province.geojson stores 3 provinces as bare STATE_CODE
   // numbers, so a regression shows up as a node called "2" or "5" instead of Madhesh / Lumbini.
   ok('sankey provinces are names, not state codes', !national.sankey.labels.some(t => /^[1-7] \(\d+\)$/.test(t)), JSON.stringify(national.sankey.labels.filter(t => /^\(?\d/.test(t))));
-  ok('every marker resolved to a province (no Unassigned)', !national.sankey.labels.some(t => /^Unassigned \(/.test(t)), '');
+  ok('every marker resolved to a province (no Unassigned)', !national.sankey.cols[1].some(t => /^Unassigned \(/.test(t)), JSON.stringify(national.sankey.cols[1]));
 
   // Authoritative totals (previously carried by data/investment_by_enterprise.json, since deleted):
   // the page must reproduce them from the geocsv alone.
@@ -91,17 +94,27 @@ const { chromium } = require('playwright');
   });
   await p.waitForTimeout(1400);
   let palikaHit = null, palikaBox = null;
-  // pick a palika whose centre is clear of the panels (left 300px, right panel ~1050+, filter bar, bottom bar)
+  // Zoom to one palika first: the two-row layout fits ALL of Nepal in the (now smaller) map box, so a
+  // palika is a few pixels wide at the national view and a click cannot land inside its rings.
+  await p.evaluate(() => {
+    const map = window.layer_LocalLevel._map;
+    let first = null;
+    window.layer_LocalLevel.eachLayer(l => { if (!first) first = l; });
+    if (first && map) { map.fitBounds(first.getBounds(), { maxZoom: 12 }); }
+  });
+  await p.waitForTimeout(1800);
+  // then pick a palika whose centre is clear of the panels (left 300px, right panel ~1050+, bottom panel)
   const palikaInfo = await p.evaluate(() => {
+    const mapBox = document.getElementById('map').getBoundingClientRect();
     const paths = document.querySelectorAll('.leaflet-pane_LocalLevel-pane path');
+    let best = null;
     for (const el of paths) {
       const r = el.getBoundingClientRect();
       const cx = r.x + r.width / 2, cy = r.y + r.height / 2;
-      if (cx > 320 && cx < 900 && cy > 150 && cy < 600 && r.width > 8 && r.height > 8) {
-        return { x: r.x, y: r.y, w: r.width, h: r.height };
-      }
+      const clear = cx > 320 && cx < 900 && cy > 150 && cy < mapBox.bottom - 40 && r.width > 8 && r.height > 8;
+      if (clear && (!best || r.width * r.height > best.w * best.h)) { best = { x: r.x, y: r.y, w: r.width, h: r.height }; }
     }
-    return null;
+    return best;
   });
   palikaBox = palikaInfo;
   if (palikaInfo) {

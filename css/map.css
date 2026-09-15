@@ -6,13 +6,19 @@
             padding: 0;
             overflow: hidden;
         }
+        /* Two-row page layout: the map takes the top, the bottom panel is its own block below it, with a
+           drag bar between (--bottom-h). Nothing overlaps the map any more. */
+        body {
+            display: flex;
+            flex-direction: column;
+        }
         
         #map {
-            width: 100vw;
-            height: 100vh;
-            position: fixed;
-            top: 0;
-            left: 0;
+            width: 100%;
+            height: auto;
+            flex: 1 1 auto;
+            min-height: 120px;
+            position: relative;
             z-index: 1;
             background: #e8f5e9;   /* light green canvas */
         }
@@ -53,8 +59,14 @@
         }
 
         /* Right panel is now at the BOTTOM → slide down off-canvas when collapsed */
-        .map-panel.bottom-panel.collapsed {
-            transform: translateY(calc(100% + 10px));
+        /* The bottom panel is IN FLOW (a sibling of #map), so "collapsed" shrinks it to its header bar
+           instead of sliding it off-canvas — that is what makes the map grow back. */
+        /* ID-scoped on purpose: #bottomPanel also sets `height: var(--bottom-h)`, and an ID beats a
+           two-class selector — the class-only rule silently lost (panel never shrank). */
+        #bottomPanel.collapsed {
+            transform: none;
+            height: 34px;
+            min-height: 34px;
         }
 
         /* Bottom panel is now on the RIGHT → slide right off-canvas when collapsed */
@@ -142,7 +154,41 @@
         /* The sankeys live side by side in the wide bottom strip; each scroller keeps one usable in a
            narrow window instead of squashing it (see renderSankeyInto, which sizes itself to this box). */
         .sankey-wrap { overflow-x: auto; flex: 1 1 0; min-width: 0; }
+        /* Interactive flow columns above the pair of charts (native <select>s - no widget lib) */
+        .sankey-cols {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 4px 2px 6px;
+            font: 11px/13px Arial, Helvetica, sans-serif;
+            color: #1a3c5e;
+        }
+        .sankey-cols-label { font-weight: 600; margin-right: 2px; }
+        .sankey-cols select {
+            font: 11px/13px Arial, Helvetica, sans-serif;
+            color: #1a3c5e;
+            background: #f3f8fc;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            padding: 2px 4px;
+        }
+        .sankey-cols select:focus { outline: 1px solid #0070b6; }
         .sankey-row { display: flex; gap: 14px; align-items: flex-start; }
+        /* The sankey data beside the charts: a third flex column, so a narrow window scrolls it instead of
+           squashing the diagrams. Numeric cells are exact (no k/M rounding) and right-aligned. */
+        /* Own scrollbox with a sticky header + total row, so 20+ chains do not stretch the row past the
+           charts (the panel scrolls too - the table just stops being the thing that makes it tall). */
+        .sankey-table-wrap { flex: 0 0 420px; min-width: 420px; max-height: 60vh; overflow: auto; font: 11px/15px Arial, Helvetica, sans-serif; }
+        #sankeyTable { border-collapse: collapse; width: 100%; color: #1a3c5e; }
+        /* label cells wrap (a palika name is long); the numeric cells stay on one line and right-aligned */
+        #sankeyTable th, #sankeyTable td { border-bottom: 1px solid #e6eef5; padding: 2px 6px; text-align: left; }
+        #sankeyTable thead th { white-space: nowrap; }   /* "Grant type" must not break mid-word */
+        #sankeyTable td { white-space: normal; overflow-wrap: anywhere; }   /* long palika names may break */
+        #sankeyTable thead th { color: #0070b6; font-weight: 600; border-bottom: 1px solid #ced4da; }
+        #sankeyTable .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        #sankeyTable tr.total td { font-weight: 600; border-top: 1px solid #ced4da; }
+        #sankeyTable tr.empty td { color: #6c757d; }
         #chartSankey { display: block; }
         
         .panel-header {
@@ -166,11 +212,37 @@
         
         /* Details panel — now at the BOTTOM (#bottomPanel holds #aggregate) */
         #bottomPanel {
-            left: 10px;
-            right: 10px;
-            bottom: 0;
-            height: 350px;
-            border-radius: 8px 8px 0 0;
+            position: static;                 /* in flow: the map shrinks when it grows */
+            flex: 0 0 auto;
+            width: 100%;
+            height: var(--bottom-h, 50vh);    /* user request: half the page, drag-adjustable */
+            max-height: none;
+            border-radius: 0;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.25);
+        }
+        /* Drag bar between the map and the bottom panel — writes --bottom-h (see the JS wiring) */
+        #bottomResize {
+            flex: 0 0 auto;
+            height: 6px;
+            cursor: row-resize;
+            background: #0070b6;
+            touch-action: none;
+        }
+        #bottomResize:hover { background: #1a3c5e; }
+        body.resizing, body.resizing * { cursor: row-resize !important; user-select: none; }
+        /* The bottom panel IS the Investment Map: it exists only in that mode (user rule) and the map
+           takes the whole height everywhere else. `display: flex` = .map-panel's own layout. */
+        body:not(.map-mode-investment) #bottomPanel { display: none !important; }
+        body.map-mode-investment #bottomPanel { display: flex; }
+        /* …and with no strip reserved, the overlay panels use the full height outside that mode */
+        body:not(.map-mode-investment) #leftPanel,
+        body:not(.map-mode-investment) #rightPanel { bottom: 12px; }
+        /* Legend hidden (user request) — one line to bring back: `display: block`. */
+        #commodityLegend { display: none; }
+        /* Side panels stop above the (now in-flow, resizable) bottom panel */
+        #leftPanel, #rightPanel {
+            bottom: calc(var(--bottom-h, 50vh) + 12px);
+            max-height: none;
         }
         
         /* Aggregate (right) panel — now on the RIGHT side (#rightPanel holds charts + legend) */

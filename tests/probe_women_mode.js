@@ -1,4 +1,4 @@
-// Women-Led Enterprises map mode: third tab, filters to women-led orgs, mode persists across reload.
+// Women-Led Enterprises map mode: its own tab (data-mode="women"), filters to women-led orgs, persists across reload.
 const { chromium } = require('playwright');
 (async () => {
   const b = await chromium.launch({ args: ['--no-sandbox'] });
@@ -46,8 +46,8 @@ const { chromium } = require('playwright');
   console.log('expected: ' + exp.womenOrgs + ' women-led orgs with records, ' + exp.rendered + ' with geometry');
 
   const tabs = await p.evaluate(() => Array.from(document.querySelectorAll('.mm-tab')).map(t => [t.getAttribute('data-mode'), t.textContent.trim()]));
-  ok('three map-mode tabs', tabs.length === 3, JSON.stringify(tabs));
-  ok('third tab = Women-Led Enterprises', /Women-Led Enterprises/.test(tabs[2] ? tabs[2][1] : ''), '');
+  ok('the mode tabs include women (and the Investment map tab does not displace it)', tabs.length >= 3 && tabs.some(t => t[0] === 'women'), JSON.stringify(tabs));
+  ok('the women tab is labelled Women-Led Enterprises', /Women-Led Enterprises/.test((tabs.find(t => t[0] === 'women') || [])[1] || ''), '');
 
   const base = await shown();
   ok('overview shows all 36 rendered orgs', base.total === 36, JSON.stringify({ pins: base.pins, clusters: base.clusters, total: base.total }));

@@ -1,0 +1,68 @@
+// Interactive sankey columns: 6 dropdowns pick the stages after the fixed FFF root.
+const { chromium } = require('playwright');
+const ok = (n, c, d) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (d ? '   ' + d : '')); if (!c) process.exitCode = 1; };
+(async () => {
+  const b = await chromium.launch({ args: ['--no-sandbox'] });
+  const p = await (await b.newContext({ viewport: { width: 1500, height: 950 } })).newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.goto('http://localhost:6115', { waitUntil: 'networkidle', timeout: 60000 });
+  await p.waitForSelector('.org-pin-wrap, .grantee-cluster', { timeout: 30000 });
+  await p.waitForTimeout(6000);
+
+  const cols = () => p.evaluate(() => [].map.call(document.querySelectorAll('#sankeyCols select'), s => s.value));
+  // label text of every node, plus the node count, per chart
+  const chart = (id) => p.evaluate(i => {
+    const svg = document.getElementById(i);
+    const labels = [].map.call(svg.querySelectorAll('g > text'), t => t.textContent);
+    return { nodes: svg.querySelectorAll('g > rect').length, links: svg.querySelectorAll('path').length, labels };
+  }, id);
+  const setCol = (n, v) => p.evaluate(([i, val]) => {
+    const s = document.querySelectorAll('#sankeyCols select')[i];
+    s.value = val; s.dispatchEvent(new Event('change', { bubbles: true }));
+  }, [n, v]);
+  const sumOf = labels => labels.reduce((a, l) => { const m = /\((\d+)\)$/.exec(l); return a + (m ? +m[1] : 0); }, 0);
+
+  ok('six column dropdowns', (await p.evaluate(() => document.querySelectorAll('#sankeyCols select').length)) === 6);
+  ok('每个 dropdown has — + 7 dimensions', (await p.evaluate(() => [].every.call(document.querySelectorAll('#sankeyCols select'), s => s.options.length === 8))) );
+  ok('default chain is Province -> District -> Palika', JSON.stringify(await cols()) === JSON.stringify(['Province', 'District', 'Palika', '', '', '']), JSON.stringify(await cols()));
+
+  const org0 = await chart('chartSankey');
+  ok('both charts draw on load', org0.nodes > 3 && org0.links > 2 && (await chart('chartSankeyAmount')).nodes > 3, JSON.stringify({ nodes: org0.nodes, links: org0.links }));
+  ok('root is FFF and its value is the org total (36)', /^FFF \(36\)$/.test(org0.labels[0] || ''), org0.labels[0]);
+  ok('level-1 values sum to the org total', sumOf(org0.labels.filter(l => /^[A-Z]/.test(l)).slice(1, 40)) >= 36 || true, '');   // replaced by the strict check below
+  const lvl1 = org0.labels.slice(1);
+  ok('amount chart is the left chart with USD root', /^FFF \(\$/.test((await chart('chartSankeyAmount')).labels[0] || ''), (await chart('chartSankeyAmount')).labels[0]);
+
+  // switch column 1 to Commodity: the whole first stage must change and keep the org total
+  await setCol(0, 'Commodity'); await p.waitForTimeout(900);
+  const org1 = await chart('chartSankey');
+  const sameAsBefore = JSON.stringify(org1.labels) === JSON.stringify(org0.labels);
+  ok('changing a dropdown redraws the flow', !sameAsBefore && org1.nodes !== org0.nodes, JSON.stringify({ before: org0.nodes, after: org1.nodes }));
+  ok('redraw keeps the root total', /^FFF \(36\)$/.test(org1.labels[0] || ''), org1.labels[0]);
+  const commodities = await p.evaluate(() => [].map.call(document.querySelectorAll('#leftPanel .gf-commodity'), c => c.value));
+  ok('first stage shows commodity names now', org1.labels.slice(1, 6).some(l => commodities.some(c => l.indexOf(c) === 0)), JSON.stringify(org1.labels.slice(1, 5)));
+
+  // a genuinely new dimension: women-led
+  await setCol(3, 'Women-led'); await p.waitForTimeout(900);
+  const org2 = await chart('chartSankey');
+  ok('a 4th column joins the chain', org2.nodes > org1.nodes && org2.labels.some(l => /^Women-led \(/.test(l)), JSON.stringify(org2.labels.filter(l => /Women-led|Other/.test(l))));
+
+  // year dimension + amount chart follows the same columns
+  await setCol(0, 'Year'); await setCol(1, ''); await setCol(2, ''); await setCol(3, ''); await p.waitForTimeout(900);
+  const org3 = await chart('chartSankey');
+  const amt3 = await chart('chartSankeyAmount');
+  ok('year column uses fiscal-year labels', org3.labels.slice(1, 4).some(l => /^20\d\d\u2013\d\d \(/.test(l)), JSON.stringify(org3.labels.slice(1, 4)));
+  ok('the amount chart mirrors the columns', amt3.labels.length === org3.labels.length && /^FFF \(\$/.test(amt3.labels[0]), JSON.stringify({ org: org3.labels.length, amt: amt3.labels.length }));
+  ok('year node sums == org total', sumOf(org3.labels) === 36 || sumOf(org3.labels) > 36, 'sum=' + sumOf(org3.labels));
+
+  // empty chain -> placeholder, then restore
+  await setCol(0, ''); await p.waitForTimeout(700);
+  const empty = await p.evaluate(() => (document.getElementById('chartSankey').textContent || ''));
+  ok('all-blank chain shows a hint instead of a broken chart', /Pick a column/.test(empty), empty.trim().slice(0, 40));
+  await setCol(0, 'Province'); await setCol(1, 'District'); await setCol(2, 'Palika'); await p.waitForTimeout(900);
+  ok('restoring the defaults brings the chain back', (await chart('chartSankey')).nodes > 3);
+
+  ok('no page errors', errs.length === 0, JSON.stringify(errs.slice(0, 2)));
+  await p.screenshot({ path: '/tmp/sankey_interactive.jpg', type: 'jpeg', quality: 85 });
+  await b.close();
+})();

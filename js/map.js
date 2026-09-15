@@ -22,9 +22,52 @@
         setTimeout(function() {
             var m = (window.layer_Nepal && window.layer_Nepal._map) || (window.clusters_Grantees && window.clusters_Grantees._map);
             if (m && m.invalidateSize) { m.invalidateSize(); }
+            fitNepal();                     // keep the whole country on screen in the new box
         }, 300);
         updateLegendPosition();
     }
+    // Re-fit the country inside the map box. The box changes whenever the bottom panel is toggled or its
+    // drag bar moves (user rule: the map content follows so all of Nepal stays visible).
+    function fitNepal() {
+        var m = (window.layer_Nepal && window.layer_Nepal._map) || (window.clusters_Grantees && window.clusters_Grantees._map);
+        if (!m) { return; }
+        m.invalidateSize();
+        if (window.layer_Nepal && window.layer_Nepal.getBounds) {
+            var b = window.layer_Nepal.getBounds();
+            if (b && b.isValid && b.isValid()) { m.fitBounds(b, { padding: [8, 8] }); }
+        }
+    }
+    // Drag bar (#bottomResize, above the Details header): writes --bottom-h, then re-fits the map. Mouse
+    // only; the panel scrolls internally, so the wheel still works over the charts.
+    (function wireBottomResize() {
+        var bar = document.getElementById('bottomResize');
+        if (!bar) { return; }
+        var dragging = false;
+        function setHeight(px) {
+            var max = Math.round(window.innerHeight * 0.85);
+            var h = Math.max(60, Math.min(max, Math.round(px)));
+            document.documentElement.style.setProperty('--bottom-h', h + 'px');
+            fitNepal();
+        }
+        bar.addEventListener('mousedown', function(e) {
+            var panel = document.getElementById('bottomPanel');
+            if (panel && panel.classList.contains('collapsed')) { togglePanel('bottomPanel'); }
+            dragging = true;
+            document.body.classList.add('resizing');
+            e.preventDefault();
+        });
+        window.addEventListener('mousemove', function(e) {
+            if (dragging) { setHeight(window.innerHeight - e.clientY); }
+        });
+        window.addEventListener('mouseup', function() {
+            if (!dragging) { return; }
+            dragging = false;
+            document.body.classList.remove('resizing');
+            fitNepal();
+            // the charts size themselves from the strip, so a new split height needs a redraw
+            try { if (window._sankeyRefresh) { window._sankeyRefresh(); } } catch(e) { console.warn('sankey redraw failed', e); }
+        });
+    })();
     function updateLegendPosition() {
         var legend = document.getElementById('commodityLegend');
         var leftPanel = document.getElementById('leftPanel');
@@ -47,8 +90,10 @@
     // ---- Map mode switch (top nav) ----
     function setMapMode(mode) {
         var isEvo = mode === 'evolution';
+        var isInvestment = mode === 'investment';   // the bottom panel only exists in this mode
         document.body.classList.toggle('map-mode-evolution', isEvo);
         document.body.classList.toggle('map-mode-women', mode === 'women');
+        document.body.classList.toggle('map-mode-investment', isInvestment);
         try { localStorage.setItem('fff.mapMode', mode); } catch (e) { /* private mode */ }
         document.querySelectorAll('.mm-tab').forEach(function(btn){
             var active = btn.getAttribute('data-mode') === mode;
@@ -66,6 +111,22 @@
                     if (m && m.invalidateSize) m.invalidateSize();
                 }, 320);
             }
+        }
+        // Investment map: expand the bottom panel (it is hidden in every other mode, so it has no height
+        // until the class lands — the charts must be re-measured after that).
+        if (isInvestment) {
+            var invPanel = document.getElementById('bottomPanel');
+            if (invPanel && invPanel.classList.contains('collapsed')) {
+                invPanel.classList.remove('collapsed');
+                var invArrow = document.getElementById('bottomPanelArrow');
+                if (invArrow) { invArrow.textContent = '\u2304'; }
+            }
+            setTimeout(function() {
+                fitNepal();
+                try { if (window._sankeyRefresh) { window._sankeyRefresh(); } } catch (e) { console.warn('sankey redraw failed', e); }
+            }, 320);
+        } else {
+            setTimeout(fitNepal, 320);   // the map reclaims the strip's height
         }
         // Re-apply evolution filter if map already initialized
         if (typeof window._evoApplyFilter === 'function') { window._evoApplyFilter(); }
@@ -651,6 +712,35 @@
         if (!txt) { return []; }
         try { return JSON.parse(txt) || []; } catch (e) { console.warn('bad json column', e); return []; }
     }
+    // Display-only tidy for the names the source sheet pads with the entity in brackets - sometimes the
+    // acronym, sometimes another spelling of the SAME name, sometimes the district that already has its own
+    // column ("Dangdunge CFUG (Makawanpur)"). Drop only the redundant half; anything the bracket genuinely
+    // adds stays ("AFFON (Association of Family Forest Owners Nepal)" is left alone).
+    // ponytail: display layer, raw names untouched in data/*.geocsv - the pipeline keys off org_name_geojson.
+    function cleanOrgName(name, district) {
+        var m = /^([\s\S]*?)\s*\(([^()]*)\)\s*$/.exec(String(name == null ? '' : name));   // one TRAILING bracket
+        if (!m) { return name; }
+        var outer = m[1].trim(), inner = m[2].trim();
+        if (!outer) { return inner; }
+        var norm = function(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim(); };
+        var ow = norm(outer).split(' '), iw = norm(inner).split(' ');
+        var allIn = function(a, b) { return a.every(function(w) { return b.indexOf(w) >= 0; }); };
+        if (district && norm(inner) === norm(district)) { return outer; }          // the district, not the name
+        if (allIn(ow, iw)) { return inner; }                                       // "(Shree …, Limited)" is the richer form
+        if (allIn(iw, ow)) { return outer; }                                       // the same name again
+        if (iw.length <= 3 && norm(outer).indexOf(iw[0]) === 0) { return outer; }   // "(Shiv Nagar CFUG)" on "Shivnagar …"
+        return name;
+    }
+    // The boundary geojsons shout (DISTRICT: "KATHMANDU", "NAWALPARASI EAST") while the geocsv is title case,
+    // so the same column showed both. Title-case only strings that are ENTIRELY upper case - proper-cased
+    // names pass through untouched, and dotted/caps acronyms ("C.F.U.G.", "MI.NA.PA.07") keep their caps.
+    function titleCase(s) {
+        var t = String(s == null ? '' : s);
+        if (!/[A-Z]/.test(t) || t !== t.toUpperCase()) { return t; }
+        return t.replace(/[A-Za-z][A-Za-z'.&-]*/g, function(w) {
+            return w.indexOf('.') >= 0 || w.length < 2 ? w : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+        });
+    }
     var moneyBySN = {};
     var attrsFromCsv = { orgs: [], grants: [] };   // the shape buildEvoData() reads
     var rowsReadyDone = false;
@@ -672,7 +762,7 @@
                     o = byOrg[sn] = {
                         props: {
                             S_N: isNaN(+sn) ? sn : +sn,
-                            Name_of_Organization: cell(r, 'org_name_geojson'),
+                            Name_of_Organization: titleCase(cleanOrgName(cell(r, 'org_name_geojson'), cell(r, 'district'))),
                             Location: cell(r, 'Location_geojson'),
                             Type_of_Grant: cell(r, 'Type_of_Grant_geojson'),
                             Commodities: cell(r, 'Commodities_geojson'),
@@ -1252,14 +1342,14 @@
         }
         return hit;
     }
-    function districtOf(latlng) { return nameAt(window.layer_District, 'DISTRICT', latlng); }
+    function districtOf(latlng) { return titleCase(nameAt(window.layer_District, 'DISTRICT', latlng)); }
     // Province.geojson names 4 provinces and leaves 3 as bare STATE_CODE numbers - PROV_CODE maps those.
     function provinceOf(latlng) {
-        var nm = nameAt(window.layer_Province, 'Province', latlng);
+        var nm = titleCase(nameAt(window.layer_Province, 'Province', latlng));
         return PROV_CODE[nm] || nm;
     }
     // Only the 33 project local levels have polygons, so this is null outside them.
-    function localLevelOf(latlng) { return nameAt(window.layer_LocalLevel, 'GaPa_NaPa', latlng); }
+    function localLevelOf(latlng) { return titleCase(nameAt(window.layer_LocalLevel, 'GaPa_NaPa', latlng)); }
     function setAggOverview(title, msg) {
         var el = document.getElementById('aggOverview');
         if (!el) { return; }
@@ -1414,9 +1504,94 @@
 
     // Sankey: FFF -> Province -> District -> Palika, scoped to the selection. Drawn twice: 'amount'
     // (each org's LoA+DBG USD, first) and 'orgs' (one unit per organization).
+    // ---- Interactive flow columns -------------------------------------------------------------
+    // FFF is the fixed root; each of the 6 dropdowns (#sankeyCols) picks the next column's dimension.
+    // One value per org per column - see the ponytail note in renderSankeyInto.
+    function firstFiscal(pr) {
+        var m = moneyBySN[String(pr.S_N)] || {};
+        var ys = (m.contracts || []).map(function(c) { return c.service_start ? parseFiscalYear(c.service_start) : null; });
+        ys = ys.filter(function(y) { return !!y; });
+        if (!ys.length) {
+            ys = (pr.grants || []).map(function(g) { return parseFiscalYear(g.implementation_period); })
+                .filter(function(y) { return !!y; });
+        }
+        return ys.length ? ys.sort()[0] : 'Undated';   // labels are '2019–20', so sorting is safe
+    }
+    var SANKEY_DIMS = {
+        'Province': function(l, pr) { return provinceOf(l.getLatLng()) || pr.province || 'Unassigned'; },
+        'District': function(l, pr) { return districtOf(l.getLatLng()) || pr.district || 'Unassigned'; },
+        'Palika': function(l, pr) { return localLevelOf(l.getLatLng()) || pr.municipality || 'Unassigned'; },
+        'Grant type': function(l, pr) { return pr.Type_of_Grant || 'Unassigned'; },
+        'Commodity': function(l, pr) { return (pr.subcategories && pr.subcategories[0]) || 'Unclassified'; },
+        'Women-led': function(l, pr) { return (pr.women && pr.women.length) ? 'Women-led' : 'Other'; },
+        'Year': function(l, pr) { return firstFiscal(pr); }
+    };
+    function sankeyCols() {
+        return [].map.call(document.querySelectorAll('#sankeyCols select'), function(s) { return s.value; })
+                 .filter(function(v) { return v && SANKEY_DIMS[v]; });
+    }
+    // Redraw on any dropdown change; both charts share the column chain (same flow, two metrics).
+    (function wireSankeyCols() {
+        var wrap = document.getElementById('sankeyCols');
+        if (!wrap) { return; }
+        wrap.addEventListener('change', function() { try { renderSankey(selectedScope, null); } catch(e) { console.warn('sankey redraw failed', e); } });
+    })();
     function renderSankey(scope, ms) {
-        renderSankeyInto('chartSankeyAmount', 'amount', scope, ms);
-        renderSankeyInto('chartSankey', 'orgs', scope, ms);
+        // Both charts return the paths they drew, so the table beside them cannot drift from the picture.
+        var byAmount = renderSankeyInto('chartSankeyAmount', 'amount', scope, ms);
+        var byOrgs = renderSankeyInto('chartSankey', 'orgs', scope, ms);
+        renderSankeyTable(byAmount, byOrgs);
+    }
+    // js/map.js is two sibling scopes, not one: the resize bar and setMapMode sit in the earlier block and
+    // CANNOT see renderSankey or `selectedScope` (both declared further down). They refresh through this
+    // global instead - same pattern as _granteeFilterApply. Reaching across directly = ReferenceError.
+    window._sankeyRefresh = function() { renderSankey(selectedScope, null); };
+    // The table IS the chart data: one row per distinct chain, the two metrics the two charts show.
+    // ponytail: rows merge on the full chain (two orgs in one palika share a row) - exactly what the
+    // diagrams draw, so the column totals equal the chart roots. A per-link or crosstab view is a
+    // different question; add it when someone asks for one.
+    function renderSankeyTable(byAmount, byOrgs) {
+        var tbl = document.getElementById('sankeyTable');
+        if (!tbl) { return; }
+        var cols = sankeyCols();
+        var head = tbl.querySelector('thead'), body = tbl.querySelector('tbody');
+        var none = function(msg) {
+            head.innerHTML = '<tr><th>Flow data</th></tr>';
+            body.innerHTML = '<tr class="empty"><td>' + msg + '</td></tr>';
+        };
+        if (!cols.length) { none('Pick a column below to draw the flow'); return; }
+        var rows = {}, order = [];
+        function add(paths, key) {
+            (paths || []).forEach(function(p) {
+                var k = p.cells.join('\u0000');
+                if (!rows[k]) { rows[k] = { cells: p.cells, orgs: 0, usd: 0 }; order.push(k); }
+                rows[k][key] += p.w;
+            });
+        }
+        add(byOrgs, 'orgs'); add(byAmount, 'usd');
+        if (!order.length) { none('Nothing in this area'); return; }
+        var list = order.map(function(k) { return rows[k]; }).sort(function(a, b) { return b.usd - a.usd || b.orgs - a.orgs; });
+        // The total row must equal the sum of the ROUNDED cells above it (USD conversions leave cents on
+        // some rows: the exact 1,057,267 showed as 23 rounded rows adding to 1,057,266). Shares use exact.
+        var totOrgs = 0, totUsd = 0, exactUsd = 0;
+        list.forEach(function(r) { totOrgs += r.orgs; totUsd += Math.round(r.usd); exactUsd += r.usd; });
+        head.innerHTML = '<tr>' + cols.map(function(c) { return '<th>' + esc(c) + '</th>'; }).join('')
+            + '<th class="num">Organizations</th><th class="num">Amount (USD)</th><th class="num">Share</th></tr>';
+        body.innerHTML = list.map(function(r) {
+            // cells[0] is the constant FFF root - the other columns already name the stages
+            var tds = r.cells.slice(1).map(function(c) {
+                return '<td' + (c === 'Unassigned' ? ' title="no data for this stage"' : '') + '>' + esc(c) + '</td>';
+            }).join('');
+            var share = exactUsd ? (r.usd / exactUsd * 100).toFixed(1) + '%' : '\u2014';
+            return '<tr>' + tds + '<td class="num">' + r.orgs + '</td>'
+                + '<td class="num">' + (r.usd ? '$' + Math.round(r.usd).toLocaleString('en-US') : '\u2014') + '</td>'
+                + '<td class="num">' + share + '</td></tr>';
+        }).join('') + '<tr class="total"><td colspan="' + cols.length + '">Total</td>'
+            + '<td class="num">' + totOrgs + '</td><td class="num">$' + Math.round(totUsd).toLocaleString('en-US') + '</td>'
+            + '<td class="num">100.0%</td></tr>';
+    }
+    function esc(s) {
+        return String(s).replace(/[&<>"]/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
     }
     function sankeyWeight(l, metric) {
         if (metric !== 'amount') { return 1; }
@@ -1430,7 +1605,7 @@
     }
     function renderSankeyInto(svgId, metric, scope, ms) {
         var svgEl = document.getElementById(svgId);
-        if (!svgEl || typeof d3 === 'undefined' || typeof d3.sankey !== 'function') { return; }
+        if (!svgEl || typeof d3 === 'undefined' || typeof d3.sankey !== 'function') { return []; }
         ms = ms || markersIn(scope && scope.layer);
         // Each chart fills its half of the bottom strip (.sankey-wrap scrolls instead of squashing when the
         // window is narrow). clientWidth is safe even while the panel is collapsed - it keeps its layout box.
@@ -1438,81 +1613,68 @@
         // Height is the lever for the link crossings: d3-sankey's relaxation needs vertical room, and in a
         // 230px box collisions interleave the columns. Measured on the national view: 6 crossings at 230px,
         // 1 at 460px (2,288,256 USD over 36 orgs). The bottom panel scrolls, so a tall chart costs nothing.
-        var h = 460;
+        // Height follows the panel (the user can drag the split): a taller box is the ONE real lever on
+        // link crossings, so the charts grow with the strip instead of always drawing 460.
+        var contentBox = svgEl.closest ? svgEl.closest('.panel-content') : null;
+        // Floor stays 460 = the measured crossing sweet spot; a drag beyond it buys even fewer crossings,
+        // and a short strip just means the chart scrolls (the panel already scrolls).
+        var h = Math.max(460, Math.min(1000, Math.round((((contentBox || {}).clientHeight) || 560) + 40)));
         var svg = d3.select(svgEl).attr('width', w).attr('height', h);
         svg.selectAll('*').remove();
-        if (!ms.length) {
+        var cols = sankeyCols();   // the dropdown chain, blanks dropped (FFF is the fixed root)
+        if (!ms.length || !cols.length) {
             svg.append('text').attr('x', w / 2).attr('y', h / 2).attr('text-anchor', 'middle')
                 .attr('fill', '#999').style('font', '13px Arial, Helvetica, sans-serif')
-                .text('Nothing in this area');
-            return;
+                .text(!ms.length ? 'Nothing in this area' : 'Pick a column below to draw the flow');
+            return [];
         }
         var SEP = '\u0000';
-        // ponytail: cap every level and only draw the palika column when a district/palika is in focus -
-        // 4 levels x ~30 nodes is an unreadable tangle (verified by screenshot).
-        var rows = [], sum = { prov: {}, dist: {}, pal: {} }, ord = { prov: {}, dist: {}, pal: {} },
-            parent = { dist: {}, pal: {} }, parentW = {};
-        ms.forEach(function(l) {
+        // One path per marker: FFF -> col1 -> ... -> colk, k = how many dropdowns the user filled.
+        // ponytail: ONE value per org per column (a 3-commodity org shows its primary commodity), so every
+        // column's node total equals the org/amount total in scope. The alternative - a path per value -
+        // makes org counts exceed the visible total and splits money across combinatorial paths.
+        var paths = ms.map(function(l) {
             var pr = l.feature.properties;
-            var ll = l.getLatLng();
-            var prov = provinceOf(ll) || pr.province || 'Unassigned';
-            var dist = districtOf(ll) || pr.district || 'Unassigned';
-            // pip first: the palika polygon name has no ward suffix, so one palika stays one node
-            var pal = localLevelOf(ll) || pr.municipality || 'Unassigned';
-            var wt = sankeyWeight(l, metric);
-            sum.prov[prov] = (sum.prov[prov] || 0) + wt;   // these sums drive both the caps and the node order
-            sum.dist[dist] = (sum.dist[dist] || 0) + wt;
-            sum.pal[pal] = (sum.pal[pal] || 0) + wt;
-            
-            ord.prov[prov] = (ord.prov[prov] || 0) + 1;
-            ord.dist[dist] = (ord.dist[dist] || 0) + 1;
-            ord.pal[pal] = (ord.pal[pal] || 0) + 1;
-            if (!(parentW['d' + dist] >= wt)) { parentW['d' + dist] = wt; parent.dist[dist] = prov; }
-            if (!(parentW['p' + pal] >= wt)) { parentW['p' + pal] = wt; parent.pal[pal] = dist; }
-            rows.push([prov, dist, pal, wt]);
+            return { cells: ['FFF'].concat(cols.map(function(c) { return String(SANKEY_DIMS[c](l, pr)); })),
+                     w: sankeyWeight(l, metric) };
         });
-        function byValue(m) { return Object.keys(m).sort(function(a, b) { return m[b] - m[a]; }); }
-        var distOf = {}, palOf = {};
-        // Every district is kept (17 nationally): bucketing the tail into one "Other districts" node makes it
-        // a multi-parent hub, which is what re-introduces crossings (measured: cap 24 -> 1, cap 10 -> 4).
-        byValue(sum.dist).slice(0, 24).forEach(function(k) { distOf[k] = k; });
-        byValue(sum.pal).slice(0, 10).forEach(function(k) { palOf[k] = k; });
-        var withPalika = !!(scope && (scope.kind === 'District' || scope.kind === 'Local Level'));
-        // Node keys are level-prefixed: "Unassigned" can legitimately be province, district AND palika
-        // at once, and a same-name node pair makes d3-sankey throw "circular link".
-        var names = [{ name: 'FFF' }], index = { 'L0\u0000FFF': 0 };
+        // Column order is PARENT-CONTIGUOUS: inside a column, a node's children follow it, biggest first.
+        // d3-sankey keeps the array order within a column, and an interleaved column crosses no matter how
+        // many relaxation passes run (measured: 6 crossings at 230px vs 1 at 460px nationally; height is the
+        // only real lever, so the charts are 460 tall and the panel scrolls).
+        var order = [['FFF']];
+        for (var lvl = 1; lvl <= cols.length; lvl++) {
+            var kids = {};
+            paths.forEach(function(p) {
+                var par = p.cells[lvl - 1], ch = p.cells[lvl];
+                (kids[par] = kids[par] || {})[ch] = (kids[par][ch] || 0) + p.w;
+            });
+            var seen = {}, list = [];
+            order[lvl - 1].forEach(function(par) {
+                Object.keys(kids[par] || {}).sort(function(a, b) { return kids[par][b] - kids[par][a]; })
+                    .forEach(function(c) { if (!seen[c]) { seen[c] = 1; list.push(c); } });
+            });
+            Object.keys(kids).forEach(function(par) {          // safety: anything the walk above missed
+                Object.keys(kids[par]).forEach(function(c) { if (!seen[c]) { seen[c] = 1; list.push(c); } });
+            });
+            order.push(list);
+        }
+        // Node keys are level-prefixed: 'Unassigned' can be province, district AND palika at once, and a
+        // same-name node pair makes d3-sankey throw 'circular link'. Same for a column repeated twice.
+        var names = [], index = {};
         function nodeOf(level, name) {
             var key = level + SEP + name;
             if (index[key] === undefined) { index[key] = names.length; names.push({ name: name }); }
             return index[key];
         }
-        // Register nodes PARENT-CONTIGUOUSLY (a province's districts together, a district's palikas
-        // together): d3-sankey keeps the array order inside a column, and an interleaved column makes
-        // links cross no matter how many relaxation passes run.
-        var distsOf = {}, palsOf = {};
-        Object.keys(distOf).forEach(function(d) { var p = parent.dist[d] || 'Unassigned'; (distsOf[p] = distsOf[p] || []).push(d); });
-        Object.keys(palOf).forEach(function(k) { var d = parent.pal[k] || 'Unassigned'; (palsOf[d] = palsOf[d] || []).push(k); });
-        var provOrder = byValue(sum.prov);
-        provOrder.forEach(function(p) { nodeOf('L1', p); });
-        provOrder.forEach(function(p) {
-            (distsOf[p] || []).sort(function(a, b) { return sum.dist[b] - sum.dist[a]; }).forEach(function(d) {
-                nodeOf('L2', d);
-                if (!withPalika) { return; }   // registering unlinked palika nodes would draw empty bars
-                (palsOf[d] || []).sort(function(a, b) { return sum.pal[b] - sum.pal[a]; })
-                    .forEach(function(k) { nodeOf('L3', k); });
-            });
-        });
+        order.forEach(function(list, level) { list.forEach(function(n) { nodeOf(level, n); }); });
         var counts = {};
-        rows.forEach(function(t) {
-            var dist = distOf[t[1]] || 'Other districts';
-            var chain = [[0, 'FFF', t[0]], [1, t[0], dist]];
-            if (withPalika) { chain.push([2, dist, palOf[t[2]] || 'Other palikas']); }
-            chain.forEach(function(triple) {
-                var a = nodeOf('L' + triple[0], triple[1]);
-                var b = nodeOf('L' + (triple[0] + 1), triple[2]);
+        paths.forEach(function(p) {
+            for (var i = 0; i < p.cells.length - 1; i++) {
+                var a = nodeOf(i, p.cells[i]), b = nodeOf(i + 1, p.cells[i + 1]);
                 var k = a + SEP + b;
-                counts[k] = (counts[k] || 0) + t[3];
-            });
+                counts[k] = (counts[k] || 0) + p.w;
+            }
         });
         var nodes = names.map(function(n) { return { name: n.name }; });
         var links = Object.keys(counts).map(function(k) {
@@ -1544,6 +1706,7 @@
             .attr('font', '10px Arial, Helvetica, sans-serif').attr('fill', '#1a3c5e')
             .text(function(d) { var n = String(d.name); return (n.length > 15 ? n.slice(0, 14) + '\u2026' : n) + ' (' + fmtSankey(d.value, metric) + ')'; });
         g.append('title').text(function(d) { return String(d.name) + ': ' + fmtSankey(d.value, metric) + (metric === 'amount' ? ' USD (LoA+DBG)' : ' organizations'); });
+        return paths;   // the table beside the chart is built from exactly this
     }
     // The boundary panes stack Nepal > Chure > Province > LocalLevel > District, so hit-testing would
     // always land on Nepal. Pick the finest VISIBLE boundary containing the click instead - and because
@@ -1562,7 +1725,7 @@
             var pr = (hit.feature && hit.feature.properties) || {};
             var nm = (order[i] === 'layer_LocalLevel') ? pr.GaPa_NaPa : (order[i] === 'layer_District' ? pr.DISTRICT : pr.Province);
             if (nm !== null && nm !== undefined && /^[0-9]+$/.test(String(nm))) { nm = PROV_CODE[nm] || String(nm); }
-            return { kind: kinds[order[i]], label: nm ? String(nm) : kinds[order[i]], layer: hit, layerVar: order[i] };
+            return { kind: kinds[order[i]], label: nm ? titleCase(String(nm)) : kinds[order[i]], layer: hit, layerVar: order[i] };
         }
         return null;
     }

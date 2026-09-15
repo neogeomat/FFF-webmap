@@ -51,6 +51,7 @@
     <!-- Top mode switch: Map View vs Evolution of FFF Support -->
     <nav class="map-mode-tabs" id="mapModeTabs" aria-label="Map mode">
         <button class="mm-tab active" data-mode="overview" type="button">Map View</button>
+        <button class="mm-tab" data-mode="investment" type="button">Investment map</button>
         <button class="mm-tab" data-mode="evolution" type="button">Evolution of FFF Support — “Eight Years of FFF”</button>
         <button class="mm-tab" data-mode="women" type="button">Women-Led Enterprises</button>
     </nav>
@@ -95,20 +96,41 @@
     </div>
 
     <!-- Right Panel (Details) — now at the BOTTOM; holds #aggregate (info panel) -->
-    <div id="bottomPanel" class="map-panel bottom-panel collapsed">
+    <div id="bottomPanel" class="map-panel bottom-panel">
+        <div id="bottomResize" title="Drag to resize the map / details split"></div>
         <button class="panel-toggle-btn" id="bottomPanelToggle" onclick="togglePanel('bottomPanel')" title="Toggle Details">
             <span id="bottomPanelArrow">⌄</span> <span class="gf-label">Details</span>
         </button>
         <div class="panel-content">
-            <div class="panel-header">Details</div>
+            <div class="panel-header">Investment Map</div>
             <div id="aggregate">
                 <p class="text-muted mb-0">Click a boundary (country / province / district) to see an overview.</p>
             </div>
             <!-- ponytail: the sankey lives here, not in the right panel - the bottom strip is wide (620px+
                  instead of 310px) and stays visible in evolution mode, where the flow is still meaningful. -->
+            <!-- Interactive flow columns: FFF is the fixed root, each dropdown picks the next stage (— = stop).
+                 The first three default to the old fixed chain Province -> District -> Palika. -->
+            <div id="sankeyCols" class="sankey-cols">
+                <span class="sankey-cols-label">Flow columns</span>
+                <select class="sankey-col" data-col="1" title="Column 1"><option value="">—</option><option>Grant type</option><option>Commodity</option><option>Women-led</option><option>Year</option><option selected>Province</option><option>District</option><option>Palika</option></select>
+                <select class="sankey-col" data-col="2" title="Column 2"><option value="">—</option><option>Grant type</option><option>Commodity</option><option>Women-led</option><option>Year</option><option>Province</option><option selected>District</option><option>Palika</option></select>
+                <select class="sankey-col" data-col="3" title="Column 3"><option value="">—</option><option>Grant type</option><option>Commodity</option><option>Women-led</option><option>Year</option><option>Province</option><option>District</option><option selected>Palika</option></select>
+                <select class="sankey-col" data-col="4" title="Column 4"><option value="">—</option><option>Grant type</option><option>Commodity</option><option>Women-led</option><option>Year</option><option>Province</option><option>District</option><option>Palika</option></select>
+                <select class="sankey-col" data-col="5" title="Column 5"><option value="">—</option><option>Grant type</option><option>Commodity</option><option>Women-led</option><option>Year</option><option>Province</option><option>District</option><option>Palika</option></select>
+                <select class="sankey-col" data-col="6" title="Column 6"><option value="">—</option><option>Grant type</option><option>Commodity</option><option>Women-led</option><option>Year</option><option>Province</option><option>District</option><option>Palika</option></select>
+            </div>
             <div class="sankey-row">
                 <div class="sankey-wrap"><strong>Grant flow by amount (USD)</strong><svg id="chartSankeyAmount"></svg></div>
                 <div class="sankey-wrap"><strong>Grant flow by organizations</strong><svg id="chartSankey"></svg></div>
+                <!-- The same chains as numbers, beside the diagrams (renderSankeyTable fills the tbody).
+                     Fixed ~380px so the pair of charts keeps most of the strip; label cells wrap (the
+                     numeric ones must not), which is what keeps all six columns inside the box. -->
+                <div class="sankey-table-wrap">
+                    <table id="sankeyTable">
+                        <thead><tr><th>Flow data</th></tr></thead>
+                        <tbody><tr class="empty"><td>Loading…</td></tr></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>

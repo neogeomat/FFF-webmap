@@ -10,6 +10,10 @@ Trigger skill for editing the FAO FFF Nepal grantees Leaflet map at `/home/ubent
 **Standing rules:** prove every UI change in a browser over HTTP before reporting done; leave edits
 UNCOMMITTED and report the touched paths — commit only when the user explicitly says so. Other agents
 edit this repo concurrently, so a dirty working tree can be swept into someone else's commit.
+**Every UI ask ships with its probe assertion in the same pass** — add/extend a file under `Webmap/tests/`
+(or a `scripts/probe_*.js` here) that fails if the rule is broken, because the user reports the NEXT
+violation of the same rule rather than re-reading the code: an unasserted rule (hover must not write the panel,
+one entry per row, panel defaults, column order) is the next regression report.
 **Undo:** an app- or chat-level undo does NOT touch files — start with `git status` and say plainly what is
 still on disk. When the tree holds several logical changes stacked on one commit, `git checkout` / `git reset`
 can only restore a WHOLE file, so ask which scope the user means (last change vs everything) and otherwise
@@ -17,6 +21,12 @@ hand-reverse the specific edits; never reset the tree to satisfy "undo" without 
 **Describe a proposed check by what it ASSERTS and how** (tool + assertion + the failure it catches), never
 by artifact name alone — a plan line like "a new probe_x.js" comes straight back as "what do you mean by
 that", and the round-trip costs more than the sentence.
+
+**CSS state rules must match the block's specificity.** When the base rule sits behind an ID (`#leftPanel …`,
+`#bottomPanel …`), every state variant on top of it (`.checked`, `.collapsed`, `.is-open`) must carry the ID
+too: two classes lose to one ID, so the state silently never applies — a greyed-out "checked" pill and an
+in-flow panel that ignored `collapsed` both cost a debugging round. Verify a state by `getComputedStyle`,
+never by `classList`.
 
 **Base conventions, layout, data pipeline, and pitfalls live in `AGENTS.md` (repo root) —
 read that first.**
@@ -43,6 +53,10 @@ The pipeline now lives INSIDE the repo (`Webmap/tools/make_geocsv.py`, run `cd W
 and so do the probes (`Webmap/tests/`, `README` inside, run with `node tests/probe_geocsv_source.js` etc. after
 `npm i --no-save --no-package-lock playwright && npx playwright install chromium`). `.github/workflows/verify.yml`
 runs the whole set on every push — a red probe now blocks nothing by itself, so read the Action result.
+**Run the whole suite in one pass and report the FAIL count per file** (each probe exits non-zero, but the file
+list is the useful part): `cd Webmap && for f in tests/*.js; do printf '%-36s ' "$f"; timeout 220 node "$f"
+2>&1 | grep -cE '^FAIL' | sed 's/^/FAILS=/'; done` — `measure_load.js` prints instead of asserting, so it is
+always 0.
 - The geocsv carries geometry too (`WKT` POINT per row; `X`/`Y` can be blank, WKT is what the page parses), so
   one file answers "where is it", "what is it" and "how much money".
 - `data/Grantees.combined.geocsv` is the only per-org money source: `loa_total_USD_org` / `dbg_total_USD_org`,
@@ -177,9 +191,10 @@ Nepal (1, white #ffffff, always added to the map on load).
   `projectLocalLevels.geojson` → "Local Level").
 
 ## Collapsible panels — moving a panel to a new screen edge
-Three panels: `#leftPanel` (Grantees list), `#rightPanel` (Details / `#aggregate`),
-`#bottomPanel` (Aggregate charts). All default-COLLAPSED; each rides a persistent
-edge-toggle button (child of `.map-panel`). **The `left-panel` / `right-panel` /
+Three panels: `#leftPanel` (the Layers panel), `#rightPanel` (Aggregate / evolution),
+`#bottomPanel` (Details / `#aggregate` + the two sankeys). **The two overlays (`#leftPanel`, `#rightPanel`)
+default COLLAPSED; `#bottomPanel` is IN FLOW, open by default at `--bottom-h: 50vh`** (user request — see
+"Resizable map / bottom-panel split" below). Each rides a persistent edge-toggle button (child of `.map-panel`). **The `left-panel` / `right-panel` /
 `bottom-panel` CSS classes do NOT match the panel's screen position** — they are
 static identifiers on the div. The actual geometry is driven by the `#rightPanel` /
 `#bottomPanel` / `#leftPanel` id rules. So when the user wants a panel moved to a
@@ -190,10 +205,10 @@ place or its toggle button dangling:
 1. **`#id` geometry** in `<style>` (`#rightPanel`, `#bottomPanel`, `#leftPanel`): set
    `top/left/right/bottom/width/height` for the new position.
 2. **`.map-panel.<class>.collapsed` transform**: the off-canvas slide. `.left-panel`
-   slides `translateX(-100% -10px)`, `.right-panel` must slide the way the panel now
-   leaves the screen (e.g. bottom panel → `translateY(100%+10px)`), `.bottom-panel`
-   similarly (e.g. right panel → `translateX(100%+10px)`). The base `.map-panel.collapsed`
-   rule is just a fallback.
+   slides `translateX(-100% -10px)`, `.right-panel` slides `translateX(100%+10px)`. The base
+   `.map-panel.collapsed` rule is just a fallback. **`#bottomPanel` is the exception**: it is in flow, so
+   "collapsed" is `#bottomPanel.collapsed { transform:none; height:34px }` (a header-only bar) and it MUST
+   be ID-scoped — a two-class selector silently loses to `#bottomPanel`'s own `height`.
 3. **`.<class> .panel-toggle-btn` placement** + **`togglePanel()` arrow glyphs** in
    `index.html`: the button must protrude from the panel's NEW screen-facing edge
    (left-panel→right, bottom→above, right→left), and the arrow char (`›‹` vs `⌃⌄`)
@@ -202,6 +217,10 @@ place or its toggle button dangling:
 After moving, verify computed `getBoundingClientRect()` of each panel over HTTP
 (see `references/panel-layout.md` for the exact probe + the hover-popup pattern).
 Panel HTML ids/classes stay the same; only css/transform/toggle logic changes.
+
+**The legend is HIDDEN (user request).** `#commodityLegend { display:none }` — the plumbing below is still
+live and correct, so restoring it is one line (`display:block`); its colour key duplicates the Layers panel's
+commodity pills. Verify hidden state with `offsetParent === null`.
 
 **The legend lives on the LEFT and rides the LEFT panel (user rule — it used to follow the right panel).**
 `#commodityLegend` is NOT a child of any panel — it is a `position:fixed` overlay whose `left`/`bottom` the
@@ -232,8 +251,9 @@ check passes on a handler that never turns the layer back off. Recipe + re-runna
 **Do not assume those layer globals exist** — `window.clusters_Grantees` / `window.layer_Grantees` are
 undefined in the current build, so a probe that reaches for `._map` throws instead of returning a
 map. When you need the map (or an unclustered pin) and no global exposes it, drive the DOM: dispatch
-clicks on `.grantee-cluster` until `.org-pin-wrap` appears (recipe in
-`references/leaflet-browser-verify.md`).
+clicks on `.grantee-cluster` until `.org-pin-wrap` appears, and read records you cannot reach through the DOM by
+walking the layers off a boundary layer's map (`references/leaflet-browser-verify.md` → "Reading state the app
+never exposes").
 
 **Boundary layers ARE exposed — use them as the stable anchor.** The `specs` array sets
 `window.layer_<Name>` for every boundary, so `window.layer_District._map` is a guaranteed map instance and
@@ -309,6 +329,16 @@ the metric before encoding it as a size or a total.
    time (each `old_string` ends with its own newline) or join the block with explicit `\r\n` in the old_string
    (the fuzzy matcher absorbs whitespace, not line-ending runs). Deleting a whole dead function/callback block
    is the same problem — build the CRLF-joined old_string and replace it with `""`.
+   **Cheapest reliable route for a long block: SLICE the old text out of the file and hand that exact string to
+   the patch tool** — `open(path, newline='').read().split('\r\n')`, then `old_string = '\r\n'.join(lines[a-1:b])`
+   around the line numbers you just read. The `newline=''` is load-bearing: default text mode applies universal
+   newlines, so a CRLF file splits into ONE element and every line-range slice returns garbage (read_file shows
+   the \r as part of each line precisely because it does not translate). Hand-retyping a 60-line block from the
+   read output burns a cycle per failed attempt; slicing by line number never misses.
+   **For DOC edits (AGENTS.md, README blocks) skip the patch tool**: one `execute_code` pass —
+   `s = open(p, newline='').read()`, `assert old in s`, `s.replace(old, new, 1)`, write, then print
+   `s.count(marker)` per replacement so a miss is loud. Instant and immune to fuzzy-match drift, where the
+   same multi-line replacement through the patch tool can stall for minutes on a file of a few KB.
 2. Serve over HTTP — `python3 -m http.server 6115 --directory Webmap` → `http://localhost:6115`.
    Check `ss -ltnp | grep 6115` first: a stale `http.server` from an earlier session keeps the
    port and serves the OLD copy (your edit looks missing, data URLs 404). **Never verify
@@ -344,7 +374,27 @@ the metric before encoding it as a size or a total.
    orgs that live inside an existing cluster leaves the icon count identical (measured 17 before and after), so
    count MEMBERS instead: pins + the numbers inside every cluster label must equal the orgs that pass the
    filter. Print the DOM you measured — if the code and the probe disagree,
-   the probe is the cheaper suspect.
+   the probe is the cheaper suspect. Traps specific to AUTHORING a new probe (target the SVG stage instead of
+   every label, do not copy another probe's click coordinates, add it to `tests/README`) are collected in
+   are collected in `references/leaflet-browser-verify.md` → "Writing a NEW probe".
+      **Re-scope chart assertions before re-running them after a feature change.** An assertion that greps ALL
+      labels for a value ("no `Unassigned` province") starts failing the moment a legitimate `Unassigned` appears
+      in a DIFFERENT column — group the labels by their column (sankey: sort the x attributes of `g > text` and
+      index the column you mean) and assert against that column, so the probe fails only when that column is
+      really wrong. Same rule for geometry: a click target taken from a whole-viewport heuristic (a polygon's
+      on-screen box, a panel-relative offset) moves with any layout or zoom change and reports a UI regression
+      that is not one — zoom to the target first (`window.layer_<Name>._map.fitBounds(layer.getBounds(),
+      {maxZoom: 12})`) and click its measured centre.
+      **A region that becomes HIDDEN BY DEFAULT breaks every probe that measured it, and the failure reads as a
+      regression in the change.** After the bottom panel moved behind Investment map mode (`display:none`
+      everywhere else) `probe_layout_split` went to 9 FAILs and the two sankey probes to 2-5: `clientWidth` and
+      `getBoundingClientRect()` are 0 inside a `display:none` subtree, so every geometry/drag/chart-height
+      assertion measured zero — while the charts still DREW (their 420×460 size floors), which hides the cause.
+      Fix the PROBES, not the feature: enter the mode first (`setMapMode('investment')` + ~1 s so the charts
+      re-measure) in anything that touches the panel, or assert what is true in both states (the panel is
+      `display:none` off-mode and in-flow on-mode). Same family: an assertion naming a tab COUNT or POSITION
+      ("three modes", "third tab = X") ages out on the next tab — look tabs up by `data-mode` and assert the
+      set contains what you need, never that the list has exactly N.
 
    **Sweeping layout/option variants? Add a TEMPORARY runtime config hook, and re-render through a path that
    does NOT change the data.** `var CFG = window.__someCfg || {}` read by the render function lets ONE browser
@@ -567,23 +617,100 @@ BOTTOM panel** now (`#bottomPanel`, under the boundary overview text), not here 
   the Commodity pills filter on — not the free-text `Commodities` string). The render join must first COPY
   `district`/`province`/`municipality` from `orgs[]` onto `p` — it never did; without that there is nothing
   to fall back on for labels.
-- Sankey, as shipped: **FFF → Province → District → Palika** — drawn TWICE (user rule): `#chartSankeyAmount`
+- Sankey, as shipped: **FFF → the columns you pick** — drawn TWICE (user rule): `#chartSankeyAmount`
   first, flowing each org's LoA+DBG **USD** from `moneyBySN`, then `#chartSankey` counting one unit per
-  **organization**; `renderSankey(scope, ms)` fans out to `renderSankeyInto(svgId, metric, scope, ms)`, and the
-  top-N caps follow the metric below. **All three levels
-  from point-in-polygon** (user rule: "use pip for province and local levels as well") with the attribute as
+  **organization**; `renderSankey(scope, ms)` fans out to `renderSankeyInto(svgId, metric, scope, ms)`.
+- **The chain is interactive (user rule).** `#sankeyCols` (index.html, above the charts) holds **6 native
+  `<select>`s**; `SANKEY_DIMS` maps each dimension to one accessor: `Province`/`District`/`Palika` **from
+  point-in-polygon** (user rule: "use pip for province and local levels as well") with the attribute as
   fallback — `provinceOf` → `nameAt(layer_Province,'Province')` through `PROVINCE_NAME` (the geojson stores 3
   provinces as bare `STATE_CODE` numbers, so `2` must become `Madhesh`), `districtOf` →
   `layer_District.DISTRICT`, `localLevelOf` → `layer_LocalLevel.GaPa_NaPa` (only the 33 project palikas have
-  polygons, so palika often falls back to `municipality`). PIP at the palika level **merges wards**: two orgs
-  in Panauti ward 8 and ward 10 are ONE node `Panauti (2)` instead of two identical truncated labels.
+  polygons, so palika often falls back to `municipality`); plus `Grant type` (`Type_of_Grant`), `Commodity`
+  (`subcategories[0]`), `Women-led` (`women[]` empty or not) and `Year` (`firstFiscal()` = earliest contract
+  `service_start` FY → the grants' `implementation_period` → `Undated`). Blanks are dropped, so the chain is
+  `FFF → col1 → … → colk`, and one `change` listener calls `renderSankey(selectedScope, null)`. **One value per
+  org per column** (a 3-commodity org shows its primary commodity) so every column's node total equals the
+  org/amount total in scope; a path-per-value variant inflates org counts and splits the money across
+  combinatorial paths — do not switch to it without saying so. PIP at the palika level **merges wards**: two
+  orgs in Panauti ward 8 and ward 10 are ONE node `Panauti (2)` instead of two identical truncated labels.
   Cost: PIP per marker against 33 palika polygons ≈ 26–30 ms for a 36-marker re-render (acceptable; cache if a
-  bigger dataset lands). Levels are capped (`topOf(distCount, 12)` / `topOf(palCount, 10)` + `Other …`) and the
-  **palika column is drawn only when a district/palika is in scope** — nationally it was 13 one-org nodes of
-  noise. No `append('title')` tooltips: they are unclickable inside `pointer-events` panels.
+  bigger dataset lands). **Nothing is capped or bucketed** — the old `topOf(...,12)` / `topOf(...,10)` +
+  "Other …" caps are gone, because a tail bucket is a multi-parent hub that re-introduces crossings. Node order
+  is still **parent-contiguous** (within a column a node's children follow it, biggest first). No
+  `append('title')` tooltips: they are unclickable inside `pointer-events` panels.
+- **Org display names are tidied at render time (user request: "some of the names are redundant").**
+  `cleanOrgName(name, district)` sits next to the geocsv loader in `js/map.js` and is applied ONCE where the
+  feature properties are built (`Name_of_Organization`), so the permanent tooltip and `bio_table_generator` agree.
+  It drops a **trailing** bracket that is (a) the row's district, (b) a repeat of the same name either way round
+  (case/punctuation-insensitive, so "SHREE SHIVASHAKTI KRISHI SAHAKARI (Shree Shivashakti Krishi Sahakari,
+  Limited)" becomes the richer inner form), or (c) a ≤3-word alias whose first word is a prefix of the outer's
+  first word ("Shivnagar Samudayik Ban Upabhokta Samuha (Shiv Nagar CFUG)"). **Anything the bracket genuinely
+  adds survives** — AFFON/NFGF/NIWF/IHHR acronym pairs are untouched, which is exactly the over-stripping failure
+  mode to re-check whenever the rule is widened. The raw names stay in `data/*.geocsv` (the pipeline keys off
+  `org_name_geojson`, and `ALIASES`/`SAME_ORG` matching depends on them). Probe: `tests/probe_org_names.js`
+  (reads the tooltips off every marker in the cluster group, so no zooming; 8 assertions).
+- **Title case, same display layer.** `titleCase()` fires **only when the whole string is upper case** (proper
+  case passes through), so the boundary geojsons' `DISTRICT` labels stop disagreeing with the geocsv fallback in
+  the same column: `districtOf`/`provinceOf`/`localLevelOf` wrap their `nameAt(...)` in it and the org name is
+  `titleCase(cleanOrgName(...))`. Dotted acronym words keep their capitals ("C.F.U.G.", "MI.NA.PA.07"), single
+  letters stay as they are — verify that with `probe_org_names.js`'s shouting assertion rather than eyeballing.
+- **Three rows are two entities each** — S_N 7, 8, 12 have ` / ` inside the name. Left joined **deliberately, at
+  the user's instruction** ("leave splitting for now"): splitting them means 3 extra org rows and their
+  LoA/DBG/hh/area cannot be attributed between the halves from the available sources. Say so rather than silently
+  picking one name, and note the three S_N values so a future pass does not re-discover them.
+- **The sankey data table (user request: "make the sankey data available in table beside the diagrams").**
+  `renderSankeyInto` now **returns the `paths` it drew** (`[{cells:['FFF', …], w}]`, `[]` on both early exits) and
+  `renderSankey` hands them to `renderSankeyTable(byAmount, byOrgs)` — so the numbers cannot drift from the
+  picture and no filter/scope/mode path needs its own hook (they all funnel through `renderSankey`). One row per
+  **distinct chain** (rows merge on the full chain: two orgs in one palika share a row), columns = the picked
+  dimensions + `Organizations` / `Amount (USD)` / `Share`, then a totals row; `esc()` escapes the data-derived
+  cells. The total row sums the **rounded** cells above it — some LoA/DBG conversions carry cents, so the exact
+  1,057,267 displays as rows summing to 1,057,266 and the total must agree with what is on screen; `Share` uses
+  the exact values. **Placement: a fixed 420px third flex column beside the pair** (`.sankey-table-wrap`, own
+  scrollbox capped at `60vh`, so 20+ chains do not stretch the row past the charts). Two CSS rules carry it and
+  both were screenshot-driven: label cells wrap + headers never wrap + `.num` cells never wrap, which is what fits
+  all six columns in 420px with nothing clipped (a first pass let the numbers wrap mid-value — "$167,15 8" — and
+  `word-break` on the headers split "Grant type" three ways). Sticky header/total cells do NOT work in a
+  `border-collapse: collapse` table (measured: the total row stayed off-screen) — plain cells, and the totals are
+  legible in the chart roots above anyway. Probe: `tests/probe_sankey_table.js`
+  (14 assertions: in the panel under the charts, header == picked columns + 3, no duplicate chains, both column sums ==
+  the charts' `FFF (…)` root labels, share == 100%, totals row echoes the columns, a dropdown change moves the
+  header/rows but not the totals, no clipped columns, no page errors).
+- **`js/map.js` is two sibling scopes — cross-scope calls go through `window._sankeyRefresh`.** `selectedScope`,
+  `renderSankey`, `renderSankeyTable` and `renderSankeyInto` are declared in the later block (~line 1300+), while
+  the resize bar (~line 68) and `setMapMode` (~91) live in the earlier block. Reaching across directly gives
+  `ReferenceError: renderSankey is not defined` — inside the surrounding `try/catch` it never fires a pageerror,
+  it just logs `sankey redraw failed` and the charts silently keep their old size (the drag and the mode switch
+  both looked fine until you measure the SVG height). Expose a closure-correct entry at the definition site
+  (`window._sankeyRefresh = function() { renderSankey(selectedScope, null); }`, same pattern as
+  `_granteeFilterApply`) and call it guarded (`if (window._sankeyRefresh)`). **Always assert on the console
+  warning**, not just on pageerrors: `probe_layout_split.js` measures the chart height across a bare drag, and
+  `probe_investment_mode.js` checks the mode switch.
+- **The bottom panel IS the Investment Map (user rule).** It exists only while `body.map-mode-investment` is on:
+  `body:not(.map-mode-investment) #bottomPanel { display:none !important }` + `body.map-mode-investment #bottomPanel
+  { display:flex }`, and outside that mode the overlay panels drop to `bottom:12px` (no strip to clear). The
+  `#mapModeTabs` tab is `Investment map` `[data-mode=investment]` (2nd tab), the panel header reads **Investment
+  Map** (was "Details"), and entering the mode un-collapses the panel + after 320 ms calls `fitNepal()` and
+  re-renders both sankeys (while hidden their `clientWidth` is 0 — the render floors at 420×460, so nothing
+  breaks, but the redraw fits them to the strip). Probe: `tests/probe_investment_mode.js`.
+- **Resizable map / bottom-panel split (user request).** The page is a two-row flex column: `body{display:flex;
+  flex-direction:column}`, `#map{flex:1 1 auto; min-height:120px; position:relative}`,
+  `#bottomPanel{position:static; flex:0 0 auto; width:100%; height:var(--bottom-h, 50vh)}` — the panel is a
+  real block BELOW the map, not an overlay, and it opens at half the page **when Investment map mode is on**
+  (hidden otherwise — see the bullet above). `#bottomResize` (6px bar, first
+  child of the panel, `cursor:row-resize`) writes `--bottom-h` on `documentElement` during mousemove; on drop
+  it calls `fitNepal()` and re-renders both sankeys. `fitNepal()` = `invalidateSize()` +
+  `fitBounds(window.layer_Nepal.getBounds(), {padding:[8,8]})` — user rule: the map content follows so the
+  whole country stays visible (it is also called from `togglePanel`'s 300 ms hook and on drag). A drag on the
+  collapsed panel expands it first (`togglePanel`). The two overlay panels stop above the strip
+  (`bottom: calc(var(--bottom-h, 50vh) + 12px)`), so nothing overlaps the panel. Probe:
+  `tests/probe_layout_split.js` (legend hidden, no overlap, 50% default, drag resizes both boxes, Nepal stays
+  fitted, collapse shrinks to the header, option order).
 - **Sankey placement: the BOTTOM panel** (`#bottomPanel`, above `#aggregate`'s text, user rule), the two charts
   **SIDE BY SIDE** (`.sankey-row { display:flex; gap:14px }` + `.sankey-wrap { flex:1 1 0; min-width:0 }`) and each
-  **460 tall**; `renderSankeyInto` sets the SVG width from its own box at render time
+  `max(460, strip+40)` tall (the floor is the measured crossing sweet spot; a dragged-taller panel draws
+  taller charts, up to 1000px, and a short strip just scrolls); `renderSankeyInto` sets the SVG width from its own box at render time
   (`Math.max(420, wrap.clientWidth - 2)` — clientWidth survives a collapsed panel, so no zero-width trap; a
   resize does NOT re-fit, the charts keep their drawn size until the next re-render). The panel scrolls (`#bottomPanel` is a fixed 350px strip; `.panel-content` is `overflow-y:
   auto`, so the two tall charts scroll — user asked for exactly that). Because the bottom panel STAYS VISIBLE in

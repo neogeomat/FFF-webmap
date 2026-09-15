@@ -29,8 +29,8 @@ Boundary overlays load via `fetch` and are BLOCKED on `file://` — always use H
   active radio. Then click `Satellite (Esri)` in that control → tiles > 0 with the district paths surviving,
   click `No background` → tiles back to 0.
 - **The zoom LEVEL is not readable from a probe either** (`map` is closure-scoped and `window.map` is the
-  `<div>`), so never assume one: anchor on an action whose zoom you control — the left-panel row click lands
-  on exactly `z13` — then step the map ±1 with `.leaflet-control-zoom-in` / `.leaflet-control-zoom-out` and
+  `<div>`), so never assume one: anchor on an action whose zoom you control —
+  `window.layer_District._map.setView(latlng, 13)` lands on exactly `z13` — then step the map ±1 with `.leaflet-control-zoom-in` / `.leaflet-control-zoom-out` and
   assert the zoom-driven behaviour flips one step BELOW the anchor and back one step ABOVE it. Read the two
   observables that ARE in the DOM: `img.leaflet-tile` count and the `.leaflet-control-layers-base
   input:checked` radio (Leaflet's layers control re-ticks itself off `layeradd`/`layerremove`). Assert BOTH
@@ -139,11 +139,12 @@ Uncommitted work is exactly what makes this cheap: the working tree is the "now"
   and off the marker — exactly the safe spot, because the map click handler ignores marker/tooltip targets.
   Assert the resulting KIND (`#aggOverview` starts with `District — `), not the polygon name, which depends on
   where the pin happens to sit.
-- **Finding a SPECIFIC org's pin: click its row in the left list first.** A fresh load renders ~7-9 pins, so the
-  org you need is usually inside a cluster and off-screen; its `.org-tip-name` text does not exist in the DOM yet
-  and a tooltip-text search returns an empty list (reads as "org missing"). Click the org's row in `#dataTable`
-  (it centres the map on that org at z13), wait ~2s, then read the tooltip rects. Whole recipe, in one probe:
-  click the row → `[...document.querySelectorAll('.org-tip-name')].find(e => /name/i.test(e.textContent))` →
+- **Finding a SPECIFIC org's pin: centre the map on it, then look for its tooltip.** A fresh load renders ~7-9
+  pins, so the org you need is usually inside a cluster and off-screen; its `.org-tip-name` text does not exist in
+  the DOM yet and a tooltip-text search returns an empty list (reads as "org missing"). Centre the view first —
+  `window.layer_District._map.setView(latlng, 13)` for an org you know the coordinates of (the geocsv `WKT`),
+  keep clicking `.grantee-cluster` to separate it otherwise — wait ~2s, then read the tooltip rects. Recipe:
+  `[...document.querySelectorAll('.org-tip-name')].find(e => /name/i.test(e.textContent))` →
   `page.mouse.click(rect.x + rect.width / 2 + 26, rect.y + rect.height + 20)` (the `+26` puts the click on the
   polygon, not the marker). A district click AUTO-OPENS `#rightPanel`, which eats the right 340px — re-read rects
   after every click instead of caching coordinates.
@@ -171,13 +172,11 @@ is NOT defined (it's closure-scoped). Probe the rendered result instead:
   with text like `DBG (10)`). `.gf-type` / `.gf-commodity` / `.gf-enterprise` / `.gf-orgtype` sit on the
   HIDDEN `<input type="checkbox">` INSIDE those labels, so `.gf-type .gf-value` matches NOTHING —
   read `.gf-value` (22 pills) and filter by text instead of chasing an empty list.
-- Left DataTable: `#dataTable tbody tr` — SCROLL-ONLY now (`dom: 'f<t>'`, `"paging": false`), so it holds
-  every org (36); it used to paginate at 10 rows/page and was NOT the org count. To reach one org:
-  `window.jQuery('#dataTable').DataTable().search('Binayi').draw()`, then read/click the matching row —
-  the click fills `#aggregate` with that org's card (all its grants listed). The list holds only orgs WITH
-  geometry: a name that has none (or a typo) leaves the single `.dataTables_empty` "No matching records
-  found" row, so an empty result is data, not a bug — and clicking that row must not throw (the handler
-  guards `if (!data) return;` because `table.row(this).data()` is `undefined` for it).
+- **The left-panel DataTable is GONE — never reach for `#dataTable`, `window.jQuery(...).DataTable()` or
+  `.dataTables_empty`; the plugin was deleted and those selectors now match nothing (a probe that uses them
+  reads as "no orgs rendered").** `#leftPanel` is the Layers panel (filter pills + boundary toggles). To
+  reach a specific org's pin, drive the map instance instead: `window.layer_District._map.setView(latlng, 13)`,
+  then read `.org-tip-name` tooltips (see the marker-hover section below).
 A successful render = clusters > 0 AND 2 filter pills AND table rows > 0 AND no JS console errors.
 If clusters = 0 but pills/table are also empty, the `data:loaded` event never fired — the loader only fires it
 after the geocsv parses, so check in this order: the console warning (`geocsv load failed` / `geocsv 4xx`), the
@@ -275,9 +274,9 @@ Both hovers are DOM-only — assert on the popup, not on Leaflet events. Probe: 
   move Leaflet's `mouseover` needs, so you get `visible: false` and may wrongly conclude the popup broke.
   Hover by selector: `page.hover('.org-pin-wrap >> nth=' + i)`, and skip pins whose `read()` returns null.
 - **A specific org's pin may be inside a cluster** — a fresh load renders only ~7 pins, so hovering at
-  random cannot reach a chosen org (e.g. one that is women-led). Options, cheapest first: click the org's
-  row in the left DataTable — the row click centres the map on the org at z13 but does NOT force its pin out of the cluster,
-  so an org in dense country must still be separated by clicking its cluster icon; then click
+  random cannot reach a chosen org (e.g. one that is women-led). Options, cheapest first:
+  `window.layer_District._map.setView(latlng, 13)` centres the map on the org but does NOT force its pin out of
+  the cluster, so an org in dense country must still be separated by clicking its cluster icon; then click
   clusters / zoom-in until the target area separates, or assert on the SHARED card instead (`#aggregate`
   gets `bio_table_generator`'s exact HTML) and state plainly that the marker/cluster popups render the same
   generator. Never claim a popup screenshot you did not get.
@@ -305,6 +304,31 @@ Both hovers are DOM-only — assert on the popup, not on Leaflet events. Probe: 
   adding a second dependency install.
 - **Playwright `page.evaluate` takes exactly ONE argument** — `page.evaluate(fn, someObject)`. Passing
   `fn, arg, null, 1` throws `Too many arguments`; wrap extra values in the single object.
+
+## Writing a NEW probe (traps that cost a cycle)
+- **Target the STAGE you mean, never every node in the SVG.** A blank check over all chart labels
+  (`/^Unassigned \(/`, `/^[1-7] \(\d+\)$/`) is correct only until a new column can legitimately hold that
+  value: adding a palika stage that legitimately shows `Unassigned` turned two green probes red and invited
+  "fixing" working code. Group the labels by their `x` attribute (one group per column) and assert on the
+  stage you care about — with the default chain that is 0 = root, 1 = the first picked dimension.
+  ```js
+  const t = [...svg.querySelectorAll('g > text')].map(el => ({ t: el.textContent, x: +el.getAttribute('x') }));
+  const xs = [...new Set(t.map(o => o.x))].sort((a, b) => a - b);
+  const cols = xs.map(x => t.filter(o => o.x === x).map(o => o.t));   // cols[1] = first stage
+  ```
+  Per-column sums are also the strongest invariant a flow chart has: with one path per record, every column's
+  node values must add up to the scope total — assert that instead of a node count.
+- **Do not re-test an interaction a probe already owns.** A pin-relative click
+  (`pinRect.x + width/2 + 26, pinRect.y + height/2 + 8`) only lands inside a district polygon in the setup
+  `tests/probe_scope_full.js` performs; copied into another probe it silently misses, the panel shows its
+  "click a boundary" hint, and the failure reads as a broken click path. Reuse means running THAT probe, not
+  copying its click coordinate — keep one owner per interaction and assert something local in the new probe.
+- **The click side of the bottom panel and the hover side are different probes.** `tests/probe_hover_unlink.js`
+  owns "hover must not write `#aggregate`"; the scope-click updates belong to `probe_scope_full` /
+  `probe_legend_pie`. Say which probe proved what instead of widening one probe into a second owner.
+- **A new probe joins the suite:** put it in `Webmap/tests/` and add its one-line description to `tests/README`
+  (`.github/workflows/verify.yml` runs `tests/*.js`). Every assertion message must print the measured value —
+  `len=129`, `["Bagmati (16)", …]` — because a bare `FAIL` costs a re-run to diagnose.
 
 ## Browser sandbox workaround (this Ubuntu host)
 Prefer driving Playwright directly (`cd ~/pw-check && node verify_web_ui.js`) — no consent

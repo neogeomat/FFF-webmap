@@ -1603,6 +1603,24 @@
         return v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'M'
              : (v >= 1e3 ? '$' + Math.round(v / 1e3) + 'k' : '$' + Math.round(v));
     }
+    // Drawable height for a sankey = its wrap's inner box minus the <strong> heading above the SVG.
+    // CSS owns the layout (.sankey-wrap is a flex column of the bounded row), so this is a read of what the
+    // browser already resolved, not a measurement of our own previous output. Floor 150 so a collapsed
+    // panel still draws something rather than throwing on a negative extent.
+    function sankeyInnerHeight(svgEl) {
+        // --bottom-h is the panel's height and it is already applied to the DOM before a refresh is asked
+        // for; anything read back from .sankey-wrap is the PREVIOUS chart's height (the wrap is sized by
+        // its own content), which left the chart a drag behind. Derive the room instead of measuring it.
+        var v = getComputedStyle(document.documentElement).getPropertyValue('--bottom-h').trim();
+        var panelH;
+        if (/vh$/.test(v)) { panelH = window.innerHeight * parseFloat(v) / 100; }
+        else if (/px$/.test(v)) { panelH = parseFloat(v); }
+        else { var bp = document.getElementById('bottomPanel'); panelH = bp ? bp.getBoundingClientRect().height : 0; }
+        var cols = document.getElementById('sankeyCols');
+        var heads = document.querySelectorAll('.sankey-wrap strong');
+        var chrome = ((cols || {}).offsetHeight || 0) + ((heads[0] || {}).offsetHeight || 0) + 30;
+        return Math.round(Math.max(150, panelH - chrome));
+    }
     function renderSankeyInto(svgId, metric, scope, ms) {
         var svgEl = document.getElementById(svgId);
         if (!svgEl || typeof d3 === 'undefined' || typeof d3.sankey !== 'function') { return []; }
@@ -1615,10 +1633,20 @@
         // 1 at 460px (2,288,256 USD over 36 orgs). The bottom panel scrolls, so a tall chart costs nothing.
         // Height follows the panel (the user can drag the split): a taller box is the ONE real lever on
         // link crossings, so the charts grow with the strip instead of always drawing 460.
-        var contentBox = svgEl.closest ? svgEl.closest('.panel-content') : null;
-        // Floor stays 460 = the measured crossing sweet spot; a drag beyond it buys even fewer crossings,
-        // and a short strip just means the chart scrolls (the panel already scrolls).
-        var h = Math.max(460, Math.min(1000, Math.round((((contentBox || {}).clientHeight) || 560) + 40)));
+        // The chart must FIT the strip: the panel is a flex column holding the dropdown row and this chart,
+        // and a chart taller than its box is permanently clipped (the user: "some part is always hidden").
+        // Measure the wrap's own room rather than the panel's, and never floor above it - a short strip
+        // draws a short (crossing-heavier) chart, which is the honest trade. 460 stays as the DESIRED size
+        // only when there is room for it.
+        // The chart must FIT the strip, never exceed it. Measure from the PANEL down (the wrap itself is an
+        // unbounded flex item - reading it back returns the previous SVG's height, which made the chart a
+        // feedback loop of its own last size). room = panel content height - dropdown row - heading - pad.
+        // Height is owned by CSS: .sankey-wrap is a flex column of the fixed-height bottom panel, so the
+        // browser fits it on every resize with no JS measurement. Anything measured here is one render
+        // stale (the panel's box updates after this runs), which is what made the chart lag a drag and
+        // leave part of itself hidden. Read the RESOLVED px for the d3 layout only.
+        var boxH = sankeyInnerHeight(svgEl);
+        var h = boxH;   // grown below once the node count is known (the wrap scrolls if it exceeds the box)
         var svg = d3.select(svgEl).attr('width', w).attr('height', h);
         svg.selectAll('*').remove();
         var cols = sankeyCols();   // the dropdown chain, blanks dropped (FFF is the fixed root)
@@ -1682,7 +1710,22 @@
             return { source: parseInt(p[0], 10), target: parseInt(p[1], 10), value: counts[k] };
         });
         // reserve label gutters left and right so no node label gets clipped by the panel edge
-        var sankey = d3.sankey().nodeWidth(12).nodePadding(8).extent([[28, 10], [w - 110, h - 10]]);  // ponytail: right gutter is room for the LAST column's label only; fitting is by measurement now, so an over-wide gutter just steals pitch from every other column
+        // nodePadding must leave room for the tallest column, or d3 packs nodes past the box and the
+        // overflow is what the user sees as "some part is always hidden". Tallest column ~= maxDepth+1
+        // stages; with N nodes and a drawable height H, each node needs H/N before padding.
+        var perLevel = {};
+        Object.keys(index).forEach(function(k) { var lvl = +k.split(SEP)[0]; perLevel[lvl] = (perLevel[lvl] || 0) + 1; });
+        var tallest = 0;
+        Object.keys(perLevel).forEach(function(l) { tallest = Math.max(tallest, perLevel[l]); });
+        // Node bars need room; when the box can't give it, d3 spills ~48px past the extent no matter what
+        // padding is asked for. Shrink the drawable area by that spill so nothing is drawn outside the box.
+        var SPILL = 48;
+        var pad = Math.max(2, Math.min(8, Math.round((h - SPILL - 20) / Math.max(1, tallest) * 0.35)));
+        // Each node needs ~14px (a readable bar + a label line); pad on top. If the box is shorter the chart
+        // is drawn at the height the nodes need and the wrap scrolls - never drawn past a box it can't fill.
+        // ponytail: draw at exactly the box height - the panel scrolls, so growing past the box only adds
+        // scroll without showing more. A taller strip (drag) is what shows more nodes at once.
+        var sankey = d3.sankey().nodeWidth(12).nodePadding(pad).extent([[28, 10], [w - 110, h - SPILL - 10]]);  // ponytail: right gutter is room for the LAST column's label only; fitting is by measurement now, so an over-wide gutter just steals pitch from every other column
         var graph = sankey({ nodes: nodes.map(function(d) { return { name: d.name }; }),
                              links: links.map(function(d) { return { source: d.source, target: d.target, value: d.value }; }) });
         var color = d3.scaleOrdinal(d3.schemeTableau10);

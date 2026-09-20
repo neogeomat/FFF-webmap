@@ -62,6 +62,31 @@ const ok = (n, c, d) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (d ? '   ' +
   await setCol(0, 'Province'); await setCol(1, 'District'); await setCol(2, 'Palika'); await p.waitForTimeout(900);
   ok('restoring the defaults brings the chain back', (await chart('chartSankey')).nodes > 3);
 
+  // Label geometry. The user reported "the last column overlaps the second last" twice: column pitch is
+  // ~100px while a district label is ~90-110px, so labels must be FITTED to the measured room, not
+  // truncated by a character count. getBBox() reports 0 in this headless build - measure with
+  // getBoundingClientRect on the SVG's own coordinate system.
+  await p.evaluate(() => document.querySelector('#mapModeTabs .mm-tab[data-mode="investment"]').click());
+  await p.waitForTimeout(2500);
+  const geom = await p.evaluate(() => {
+    const svg = document.getElementById('chartSankey');
+    const sr = svg.getBoundingClientRect();
+    const rects = [].map.call(svg.querySelectorAll('g > rect'), r => r.getBoundingClientRect());
+    const texts = [].map.call(svg.querySelectorAll('g > text'), t => ({ s: t.textContent, l: t.getBoundingClientRect().left - sr.left, r: t.getBoundingClientRect().right - sr.left }));
+    const xs = Array.from(new Set(rects.map(r => Math.round(r.left - sr.left)))).sort((a, b) => a - b);
+    const overruns = [];
+    xs.forEach(x => {
+      const mine = rects.filter(r => Math.round(r.left - sr.left) === x);
+      const x1 = Math.max.apply(null, mine.map(r => r.right - sr.left));
+      const nx = xs[xs.indexOf(x) + 1] === undefined ? sr.width : xs[xs.indexOf(x) + 1];
+      texts.forEach(t => { if (t.l >= x1 && t.l < nx && t.r > nx + 1) overruns.push({ label: t.s.slice(0, 22), colEnd: Math.round(nx), labelRight: Math.round(t.r) }); });
+    });
+    return { overruns, width: Math.round(sr.width), maxRight: Math.round(Math.max.apply(null, texts.map(t => t.r))), nTexts: texts.length };
+  });
+  ok('labels exist to measure', geom.nTexts > 3, JSON.stringify({ nTexts: geom.nTexts, width: geom.width }));
+  ok('no label runs into the next column\u2019s boxes', geom.overruns.length === 0 && geom.width > 0, JSON.stringify(geom.overruns.slice(0, 3)));
+  ok('no label clips the chart edge', geom.maxRight <= geom.width, JSON.stringify({ maxRight: geom.maxRight, width: geom.width }));
+
   ok('no page errors', errs.length === 0, JSON.stringify(errs.slice(0, 2)));
   await p.screenshot({ path: '/tmp/sankey_interactive.jpg', type: 'jpeg', quality: 85 });
   await b.close();

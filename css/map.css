@@ -148,12 +148,18 @@
         .panel-content {
             padding: 15px;
             overflow-y: auto;
-            flex: 1;
+            flex: 1 1 auto;
+            min-height: 0;              /* let the box shrink, so a child can be bounded by it */
+            display: flex;
+            flex-direction: column;     /* the sankey row then gets a definite height to fit into */
         }
 
         /* The sankeys live side by side in the wide bottom strip; each scroller keeps one usable in a
            narrow window instead of squashing it (see renderSankeyInto, which sizes itself to this box). */
-        .sankey-wrap { overflow-x: auto; flex: 1 1 0; min-width: 0; }
+        /* The SVG fills this box; the browser fits it on every resize (no JS measurement - a measured height is
+                   one render stale and made the chart chase its own size). */
+                .sankey-wrap { overflow: visible; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+                .sankey-wrap > svg { flex: 0 0 auto; display: block; }
         /* Interactive flow columns above the pair of charts (native <select>s - no widget lib) */
         .sankey-cols {
             display: flex;
@@ -174,7 +180,7 @@
             padding: 2px 4px;
         }
         .sankey-cols select:focus { outline: 1px solid #0070b6; }
-        .sankey-row { display: flex; gap: 14px; align-items: flex-start; }
+        .sankey-row { display: flex; gap: 14px; align-items: flex-start; min-height: 0; flex: 0 0 auto; }
         /* The sankey data beside the charts: a third flex column, so a narrow window scrolls it instead of
            squashing the diagrams. Numeric cells are exact (no k/M rounding) and right-aligned. */
         /* Own scrollbox with a sticky header + total row, so 20+ chains do not stretch the row past the

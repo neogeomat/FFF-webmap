@@ -617,6 +617,16 @@ BOTTOM panel** now (`#bottomPanel`, under the boundary overview text), not here 
   the Commodity pills filter on — not the free-text `Commodities` string). The render join must first COPY
   `district`/`province`/`municipality` from `orgs[]` onto `p` — it never did; without that there is nothing
   to fall back on for labels.
+- **The chart must FIT the strip (hard rule, user report: "the diagrams do not fit the available vertical
+  space, some part is always hidden, even when panel is moved up").** `sankeyInnerHeight(svgEl)` derives the
+  height from `var(--bottom-h)` minus the dropdown row and heading. **Never measure `.sankey-wrap`**: it is
+  sized by the chart it contains, so a read-back is the PREVIOUS render's height — the chart chased its own
+  size, lagged every drag one step, and grew ~48px per redraw. Never reintroduce a fixed floor (the old
+  `Math.max(460, …)` outgrew a short strip and left nodes below the fold). d3 spills ~48px past `extent` when
+  the node count can't fit: reserve it (`SPILL = 48`, extent height `h - SPILL`) and derive `nodePadding` from
+  `h / tallest-column`. `.panel-content` is a flex column with `min-height: 0` and scrolls, so an oversized
+  chart is scroll-reachable rather than clipped. Probe: `tests/probe_sankey_fit.js` (5 panel heights + real
+  `#bottomResize` drags: no clipping, `attr` height == CSS height, chart tracks the strip).
 - Sankey, as shipped: **FFF → the columns you pick** — drawn TWICE (user rule): `#chartSankeyAmount`
   first, flowing each org's LoA+DBG **USD** from `moneyBySN`, then `#chartSankey` counting one unit per
   **organization**; `renderSankey(scope, ms)` fans out to `renderSankeyInto(svgId, metric, scope, ms)`.

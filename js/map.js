@@ -1682,7 +1682,7 @@
             return { source: parseInt(p[0], 10), target: parseInt(p[1], 10), value: counts[k] };
         });
         // reserve label gutters left and right so no node label gets clipped by the panel edge
-        var sankey = d3.sankey().nodeWidth(12).nodePadding(8).extent([[62, 10], [w - 62, h - 10]]);
+        var sankey = d3.sankey().nodeWidth(12).nodePadding(8).extent([[28, 10], [w - 110, h - 10]]);  // ponytail: right gutter is room for the LAST column's label only; fitting is by measurement now, so an over-wide gutter just steals pitch from every other column
         var graph = sankey({ nodes: nodes.map(function(d) { return { name: d.name }; }),
                              links: links.map(function(d) { return { source: d.source, target: d.target, value: d.value }; }) });
         var color = d3.scaleOrdinal(d3.schemeTableau10);
@@ -1698,13 +1698,38 @@
             .attr('width', function(d) { return d.x1 - d.x0; })
             .attr('height', function(d) { return Math.max(1, d.y1 - d.y0); })
             .attr('fill', function(d) { return d.name === 'FFF' ? '#0070b6' : color(d.name); });
+        // Labels sit to the RIGHT of every node (last column included). The room is the measured column
+        // pitch - next column's x0 minus this x1 - or, for the last column, out to the right edge.
+        // Column pitch is ~100px and a district label is ~90-110px, so a character-count guess overlaps
+        // the next column: fit each label to its real room by measuring it (getComputedTextLength; getBBox
+        // reports 0 in this headless build).
+        var colLeft = {};
+        graph.nodes.forEach(function(d) {
+            var k = Math.round(d.x0);
+            if (colLeft[k] === undefined || d.depth < colLeft[k].depth) { colLeft[k] = { depth: d.depth, x0: d.x0 }; }
+        });
+        var colXs = Object.keys(colLeft).map(Number).sort(function(a, b) { return a - b; });
+        function roomFor(d) {
+            var i = colXs.indexOf(Math.round(d.x0));
+            return (i >= 0 && i < colXs.length - 1) ? (colXs[i + 1] - d.x1 - 10) : (w - d.x1 - 12);
+        }
         g.append('text')
-            // labels sit in the gutters: to the right of every column except the last, which labels left
-            .attr('x', function(d) { return d.depth === maxDepth ? d.x0 - 5 : d.x1 + 5; })
-            .attr('text-anchor', function(d) { return d.depth === maxDepth ? 'end' : 'start'; })
+            .attr('x', function(d) { return d.x1 + 6; }).attr('text-anchor', 'start')
             .attr('y', function(d) { return (d.y0 + d.y1) / 2; }).attr('dy', '0.35em')
-            .attr('font', '10px Arial, Helvetica, sans-serif').attr('fill', '#1a3c5e')
-            .text(function(d) { var n = String(d.name); return (n.length > 15 ? n.slice(0, 14) + '\u2026' : n) + ' (' + fmtSankey(d.value, metric) + ')'; });
+            .style('font', '10px Arial, Helvetica, sans-serif').attr('fill', '#1a3c5e')
+            .text(function(d) {
+                var suffix = ' (' + fmtSankey(d.value, metric) + ')';
+                var t = this, full = String(d.name) + suffix, room = roomFor(d);
+                t.textContent = full;
+                if (t.getComputedTextLength() <= room) { return full; }
+                var keep = String(d.name);
+                while (keep.length > 1 && (keep + '\u2026' + suffix).length > 1) {
+                    keep = keep.slice(0, -1);
+                    t.textContent = keep + '\u2026' + suffix;
+                    if (t.getComputedTextLength() <= room) { return t.textContent; }
+                }
+                return '\u2026' + suffix;
+            });
         g.append('title').text(function(d) { return String(d.name) + ': ' + fmtSankey(d.value, metric) + (metric === 'amount' ? ' USD (LoA+DBG)' : ' organizations'); });
         return paths;   // the table beside the chart is built from exactly this
     }

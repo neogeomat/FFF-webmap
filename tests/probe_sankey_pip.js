@@ -28,6 +28,16 @@ const { chromium } = require('playwright');
   await p.evaluate(() => setMapMode('investment'));
   await p.waitForTimeout(1300);
 
+  // This probe targets the PIP columns, so pick them explicitly - the shipped defaults are
+  // Grant type -> Year -> Commodity (user request) and must not be assumed here.
+  await p.evaluate(() => {
+    const want = ['Province', 'District', 'Palika', '', '', ''];
+    document.querySelectorAll('#sankeyCols select').forEach((s, i) => {
+      if (s.value !== want[i]) { s.value = want[i]; s.dispatchEvent(new Event('change', { bubbles: true })); }
+    });
+  });
+  await p.waitForTimeout(1500);
+
   // Two sankeys: amount (USD) left of organizations, both in the bottom panel.
   const two = await p.evaluate(() => {
     const amt = document.getElementById('chartSankeyAmount');

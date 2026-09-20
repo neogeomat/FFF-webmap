@@ -62,11 +62,18 @@ const ok = (n, c, d) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (d ? '   ' +
   ok('the top district reads in title case', r.cols.indexOf('District') < 0 || /^[A-Z][a-z]/.test(r.body[0].tds[r.cols.indexOf('District')]), r.body[0].tds[1]);
   ok('a totals row echoes both columns', r.total.length === 1 && r.total[0][0] === String(r.orgSum) && r.total[0][1] === '$' + r.usdSum.toLocaleString('en-US'), JSON.stringify(r.total));
 
-  // change the first flow column: header + rows follow, the totals do not move
-  await p.evaluate(() => { const s = document.querySelector('#sankeyCols select[data-col="1"]'); s.value = 'Grant type'; s.dispatchEvent(new Event('change', { bubbles: true })); });
+  // Change the first flow column to something OTHER than its current value: header + rows follow, the
+  // totals do not move. (The shipped default is already 'Grant type', so pick a different dimension -
+  // driven off the current value rather than hardcoded, so a future default change cannot make this a no-op.)
+  await p.evaluate(() => {
+    const s = document.querySelector('#sankeyCols select[data-col="1"]');
+    const other = [].find.call(s.options, o => o.value && o.value !== s.value);
+    window.__pickedCol1 = other.value;
+    s.value = other.value; s.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   await p.waitForTimeout(1600);
   const r2 = await read();
-  ok('changing a column updates the header', r2.head[0] === 'Grant type', JSON.stringify(r2.head));
+  ok('changing a column updates the header', r2.head[0] === await p.evaluate(() => window.__pickedCol1), JSON.stringify(r2.head));
   ok('changing a column updates the rows', JSON.stringify(r2.body.map(x => x.tds[0])) !== JSON.stringify(r.body.map(x => x.tds[0])), '');
   ok('totals survive a column change', r2.orgSum === r.wantOrgs && Math.abs(r2.usdSum - r.wantUsd) <= r.wantUsd * 0.01, JSON.stringify({ orgs: r2.orgSum, usd: Math.round(r2.usdSum) }));
 

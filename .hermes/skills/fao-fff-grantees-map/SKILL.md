@@ -214,6 +214,8 @@ place or its toggle button dangling:
    (left-panel→right, bottom→above, right→left), and the arrow char (`›‹` vs `⌃⌄`)
    must match the new slide direction.
 
+**The two SIDE tabs are centred on their panel and flush on its edge** (user rules, in order: aggregate must move like Layers; no gap on the left; and they must sit "at the middle of map view at all times"). So `left-panel .panel-toggle-btn` → `left:100%; top:50%; transform:translateY(-50%)` and `right-panel .panel-toggle-btn` → `right:100%; top:50%; transform:translateY(-50%)` — flush on the edge, vertically centred. Do NOT anchor them to `bottom:0`: a panel spans `top:80px` to `calc(var(--bottom-h) + 12px)`, so `top:50%` keeps the tab in the middle of the visible map column while still riding the strip (the panel's height is what changes on a drag). Both tabs land ~34px below the map's own midline at every split — a constant offset that reads as centred. The bottom panel's own tab keeps `top:-30px; left:50%`. **Do not let a panel re-declare `bottom`** — `#rightPanel`'s old hard-coded `bottom:100px` detached it (and its tab) from `--bottom-h`, which is why only the Layers tab moved. Guarded by `tests/probe_aggregate_toggle.js`.
+
 After moving, verify computed `getBoundingClientRect()` of each panel over HTTP
 (see `references/panel-layout.md` for the exact probe + the hover-popup pattern).
 Panel HTML ids/classes stay the same; only css/transform/toggle logic changes.
@@ -631,7 +633,11 @@ BOTTOM panel** now (`#bottomPanel`, under the boundary overview text), not here 
   first, flowing each org's LoA+DBG **USD** from `moneyBySN`, then `#chartSankey` counting one unit per
   **organization**; `renderSankey(scope, ms)` fans out to `renderSankeyInto(svgId, metric, scope, ms)`.
 - **The chain is interactive (user rule).** `#sankeyCols` (index.html, above the charts) holds **6 native
-  `<select>`s**; `SANKEY_DIMS` maps each dimension to one accessor: `Province`/`District`/`Palika` **from
+  `<select>`s** (options: blank / Grant type / Commodity / Women-led / Year / Province / District / Palika /
+  Organization — **Organization last**, and the SHIPPED DEFAULTS are **Grant type, Year, Commodity, —, —, —**,
+  both user requests; three probes used to hardcode the old Province/District/Palika defaults, so any probe that
+  needs a specific chain must SET the dropdowns itself rather than assume them); `SANKEY_DIMS` maps each
+  dimension to one accessor: `Province`/`District`/`Palika` **from
   point-in-polygon** (user rule: "use pip for province and local levels as well") with the attribute as
   fallback — `provinceOf` → `nameAt(layer_Province,'Province')` through `PROVINCE_NAME` (the geojson stores 3
   provinces as bare `STATE_CODE` numbers, so `2` must become `Madhesh`), `districtOf` →

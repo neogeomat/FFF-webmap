@@ -23,8 +23,10 @@ const ok = (n, c, d) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (d ? '   ' +
   const sumOf = labels => labels.reduce((a, l) => { const m = /\((\d+)\)$/.exec(l); return a + (m ? +m[1] : 0); }, 0);
 
   ok('six column dropdowns', (await p.evaluate(() => document.querySelectorAll('#sankeyCols select').length)) === 6);
-  ok('每个 dropdown has — + 7 dimensions', (await p.evaluate(() => [].every.call(document.querySelectorAll('#sankeyCols select'), s => s.options.length === 8))) );
-  ok('default chain is Province -> District -> Palika', JSON.stringify(await cols()) === JSON.stringify(['Province', 'District', 'Palika', '', '', '']), JSON.stringify(await cols()));
+  ok('each dropdown has — + 8 dimensions', (await p.evaluate(() => [].every.call(document.querySelectorAll('#sankeyCols select'), s => s.options.length === 9))) );
+  ok('default chain is Grant type -> Year -> Commodity', JSON.stringify(await cols()) === JSON.stringify(['Grant type', 'Year', 'Commodity', '', '', '']), JSON.stringify(await cols()));
+  // User request: the org name is selectable as a stage.
+  ok('Organization is an available dimension', await p.evaluate(() => [].some.call(document.querySelectorAll('#sankeyCols select')[0].options, o => o.text === 'Organization')));
 
   const org0 = await chart('chartSankey');
   ok('both charts draw on load', org0.nodes > 3 && org0.links > 2 && (await chart('chartSankeyAmount')).nodes > 3, JSON.stringify({ nodes: org0.nodes, links: org0.links }));

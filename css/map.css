@@ -106,11 +106,14 @@
            protrude just past the panel's screen-facing edge, so the panel can
            slide fully off-screen while only the button tab stays visible. */
         /* Left panel toggle: protrudes to the RIGHT of the left panel */
+        /* Centred on the panel, which spans 80px -> the bottom panel's top edge: the tab stays in the MIDDLE
+           of the map view at every split, and still moves when the strip is dragged (the panel's height is
+           what changes). Flush on the panel edge (no gap) - user rule. */
         .left-panel .panel-toggle-btn {
             position: absolute;
-            right: -85px;
+            left: 100%;
             top: 50%;
-            left: auto;
+            right: auto;
             bottom: auto;
             transform: translateY(-50%);
             border-radius: 0 4px 4px 0;
@@ -132,9 +135,9 @@
         /* Bottom panel is now on the RIGHT → toggle protrudes to the LEFT of the panel */
         .right-panel .panel-toggle-btn {
             position: absolute;
-            left: -85px;
+            right: 100%;
             top: 50%;
-            right: auto;
+            left: auto;
             bottom: auto;
             transform: translateY(-50%);
             border-radius: 4px 0 0 4px;
@@ -251,12 +254,13 @@
             max-height: none;
         }
         
-        /* Aggregate (right) panel — now on the RIGHT side (#rightPanel holds charts + legend) */
+        /* Aggregate (right) panel — now on the RIGHT side (#rightPanel holds charts + legend).
+           No `bottom` here: the shared rule above pins it to `calc(var(--bottom-h) + 12px)` so it (and its
+           toggle tab) tracks the draggable strip like the Layers panel. A hard-coded bottom broke that. */
         #rightPanel {
             top: 80px;
             right: 10px;
             width: 340px;
-            bottom: 100px;
         }
         
         .info {

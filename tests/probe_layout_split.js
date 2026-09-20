@@ -83,9 +83,9 @@ const ok = (n, c, d) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (d ? '   ' +
 
   // dropdown option order: the three location dimensions sit at the bottom (user request)
   const order = await p.evaluate(() => [...document.querySelectorAll('#sankeyCols select')[0].options].map(o => o.textContent.trim()));
-  ok('Province/District/Palika are the last three options', JSON.stringify(order.slice(-3)) === JSON.stringify(['Province', 'District', 'Palika']), JSON.stringify(order));
+  ok('Province/District/Palika sit together, Organization last', JSON.stringify(order.slice(-4)) === JSON.stringify(['Province', 'District', 'Palika', 'Organization']), JSON.stringify(order));
   const defaults = await p.evaluate(() => [...document.querySelectorAll('#sankeyCols select')].map(s => s.value));
-  ok('default chain unchanged', JSON.stringify(defaults) === JSON.stringify(['Province', 'District', 'Palika', '', '', '']), JSON.stringify(defaults));
+  ok('default chain is Grant type -> Year -> Commodity', JSON.stringify(defaults) === JSON.stringify(['Grant type', 'Year', 'Commodity', '', '', '']), JSON.stringify(defaults));
 
   ok('no page errors', errs.length === 0, JSON.stringify(errs.slice(0, 2)));
   await p.screenshot({ path: '/tmp/layout_split.jpg', type: 'jpeg', quality: 85 });

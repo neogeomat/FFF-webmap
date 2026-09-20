@@ -1279,6 +1279,11 @@
                         '<span class="gf-box">&#10003;</span><span>Province boundaries (' + province + ')</span></label>' +
                         '<label class="gf-value checked"><input type="checkbox" class="gf-boundary" data-layer="layer_Chure" checked>' +
                         '<span class="gf-box">&#10003;</span><span>Chure boundaries (' + chure + ')</span></label>' +
+                        // User rule: whether clicking a polygon OPENS the Aggregate panel is a preference,
+                        // not a fixed behaviour. Same pill styling as the layer toggles above.
+                        '<label class="gf-value checked" title="Open the Aggregate panel when a boundary is clicked">' +
+                        '<input type="checkbox" id="autoOpenAggregate" checked>' +
+                        '<span class="gf-box">&#10003;</span><span>Auto-open Aggregate on click</span></label>' +
                     '</div>'
                 );
                 bar.querySelectorAll('.gf-boundary').forEach(function(cb) {
@@ -1296,6 +1301,20 @@
                         }
                     });
                 });
+                // Persisted for the session; read by openRightPanel()/setScope (sibling script scope).
+                var autoOpen = document.getElementById('autoOpenAggregate');
+                if (autoOpen) {
+                    window.autoOpenAggregate = autoOpen.checked;
+                    var autoLbl = autoOpen.closest('label.gf-value');
+                    if (autoLbl) {
+                        autoLbl.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            autoOpen.checked = !autoOpen.checked;
+                            autoLbl.classList.toggle('checked', autoOpen.checked);
+                            window.autoOpenAggregate = autoOpen.checked;
+                        });
+                    }
+                }
             }
         });
     })();
@@ -1359,6 +1378,9 @@
         if (card) { card.style.display = ''; }
     }
     function openRightPanel() {
+        // The user can turn the auto-open off (Layers panel -> "Auto-open Aggregate on click"): with it off
+        // a polygon click still scopes the charts, it just does not pop the panel open.
+        if (window.autoOpenAggregate === false) { return; }
         var rp = document.getElementById('rightPanel');
         if (!rp || !rp.classList.contains('collapsed')) { return; }
         rp.classList.remove('collapsed');
@@ -1524,7 +1546,10 @@
         'Grant type': function(l, pr) { return pr.Type_of_Grant || 'Unassigned'; },
         'Commodity': function(l, pr) { return (pr.subcategories && pr.subcategories[0]) || 'Unclassified'; },
         'Women-led': function(l, pr) { return (pr.women && pr.women.length) ? 'Women-led' : 'Other'; },
-        'Year': function(l, pr) { return firstFiscal(pr); }
+        'Year': function(l, pr) { return firstFiscal(pr); },
+        // One org per marker, so this column's node totals still equal the root total (see "one value per org
+        // per column"). 'Unnamed' covers the DRAFT-only rows that carry no name.
+        'Organization': function(l, pr) { return pr.Name_of_Organization || 'Unnamed'; }
     };
     function sankeyCols() {
         return [].map.call(document.querySelectorAll('#sankeyCols select'), function(s) { return s.value; })

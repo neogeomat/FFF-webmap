@@ -29,6 +29,7 @@ Run
     node tests/probe_investment_mode.js  # Investment map tab: panel hidden elsewhere, expands in-mode
     node tests/probe_sankey_table.js    # the chains as a table under the charts (totals == chart roots)
     node tests/probe_sankey_fit.js      # the charts FIT the strip: no clipping at 5 panel heights + real drags
+    node tests/probe_aggregate_toggle.js # panel tabs ride the strip; the auto-open-on-polygon-click preference
     node tests/probe_org_names.js      # display-name tidy: redundant brackets dropped, acronyms kept
     node tests/probe_hover_unlink.js     # marker/cluster hover must NOT write the bottom panel
     node tests/probe_legend_pie.js       # legend placement + LoA/DBG pie & bar colours

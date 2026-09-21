@@ -1562,6 +1562,10 @@
         wrap.addEventListener('change', function() { try { renderSankey(selectedScope, null); } catch(e) { console.warn('sankey redraw failed', e); } });
     })();
     function renderSankey(scope, ms) {
+        // Name the boundary the flow belongs to: the charts update on a polygon click and this header is
+        // the only always-visible label for it (the right panel's #aggOverview can be collapsed).
+        var lbl = document.getElementById('sankeyScopeLabel');
+        if (lbl) { lbl.textContent = scope ? (scope.kind + ' \u2014 ' + scope.label) : 'All Nepal (nationwide)'; }
         // Both charts return the paths they drew, so the table beside them cannot drift from the picture.
         var byAmount = renderSankeyInto('chartSankeyAmount', 'amount', scope, ms);
         var byOrgs = renderSankeyInto('chartSankey', 'orgs', scope, ms);
@@ -1784,7 +1788,7 @@
         g.append('text')
             .attr('x', function(d) { return d.x1 + 6; }).attr('text-anchor', 'start')
             .attr('y', function(d) { return (d.y0 + d.y1) / 2; }).attr('dy', '0.35em')
-            .style('font', '10px Arial, Helvetica, sans-serif').attr('fill', '#1a3c5e')
+            .style('font', '13px Arial, Helvetica, sans-serif').attr('fill', '#1a3c5e')
             .text(function(d) {
                 var suffix = ' (' + fmtSankey(d.value, metric) + ')';
                 var t = this, full = String(d.name) + suffix, room = roomFor(d);

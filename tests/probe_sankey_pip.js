@@ -92,7 +92,10 @@ const { chromium } = require('playwright');
   ok('district scope is Kabhrepalanchok (title case)', /District — Kabhrepalanchok/.test(ov), ov);
   const dis = await labels();
   ok('province node from pip', dis.some(t => /^Bagmati \(2\)$/.test(t)), JSON.stringify(dis));
-  ok('district node from pip', dis.some(t => /^Kabhrepalanchok \(2\)$/.test(t)), JSON.stringify(dis.slice(0, 5)));
+  // The label may be ellipsised: fitting is by MEASURED room (see renderSankeyInto), and at 13px
+  // "Kabhrepalanchok (2)" is wider than the column pitch. A unique prefix still proves PIP named it,
+  // and the untruncated name stays in the node's <title>.
+  ok('district node from pip', dis.some(t => /^Kabhrepal/.test(t) && /\(2\)$/.test(t)), JSON.stringify(dis.slice(0, 5)));
   // Both orgs sit in different wards of the same palika: with pip they must share ONE node.
   const palika = dis.filter(t => /^Panauti \(\d+\)$/.test(t));
   ok('wards merged into one palika node', palika.length === 1 && /\(2\)/.test(palika[0]), JSON.stringify(dis.filter(t => /Panauti/i.test(t))));

@@ -733,6 +733,13 @@ BOTTOM panel** now (`#bottomPanel`, under the boundary overview text), not here 
   evolution/women mode (the right panel's `#tab-aggregate` is `display:none` there), `applyEvolutionFilter`
   re-renders both from the *visible* markers — otherwise the flow silently goes stale when the year slider
   moves. Verify placement by geometry (`#bottomPanel` contains `#chartSankey`), not by reading markup.
+- **The flow names its area (user request: the sankey updated on a polygon click but nothing said which one).**
+  `.sankey-scope-bar` (a direct child of `#bottomPanel`, ABOVE the scrolling `.panel-content`) reads
+  `Showing <span id="sankeyScopeLabel">`; `renderSankey` writes `scope.kind + ' — ' + scope.label`
+  ("District — Kailali") or `All Nepal (nationwide)` when unscoped. Keep it OUTSIDE `.panel-content` — inside
+  the `overflow-y:auto` box the charts scroll it out of sight, which is the bug it fixes (and it stays visible
+  in the 34px collapsed strip). `tests/probe_scope_full.js` asserts the text tracks the scope AND that the
+  label is not contained by `.panel-content`.
 - **Killing link crossings (measured, the honest recipe):** (1) make the chart TALL — in a 230px box d3's
   collision resolution interleaves the columns; the national view went 6 → 1 crossings going 230 → 460px, and
   height beats every other knob. (2) Register nodes PARENT-CONTIGUOUSLY (each province's districts together) —

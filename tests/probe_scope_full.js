@@ -17,6 +17,8 @@ const { chromium } = require('playwright');
     const inv = window.chartInvestment ? { labels: window.chartInvestment.data.labels, loa: window.chartInvestment.data.datasets[0].data, dbg: window.chartInvestment.data.datasets[1].data } : null;
     return {
       overview: ((document.getElementById('aggOverview') || {}).innerText || '').replace(/\s+/g, ' ').trim(),
+      // The bottom panel's own header label: the sankey updates on a polygon click, so it must name the polygon.
+      scopeLabel: ((document.getElementById('sankeyScopeLabel') || {}).textContent || '').trim(),
       pie: window.chartPie ? { labels: window.chartPie.data.labels, data: window.chartPie.data.datasets[0].data } : null,
       bar: window.chartBar ? { labels: window.chartBar.data.labels, data: window.chartBar.data.datasets[0].data } : null,
       inv: inv,
@@ -24,7 +26,9 @@ const { chromium } = require('playwright');
         // grouped by column so a check can target one stage (0 FFF, 1 Province, 2 District, 3 Palika)
         cols: (() => { const t = Array.from(document.querySelectorAll('#chartSankey g > text')).map(el => ({ t: el.textContent, x: Math.round(+el.getAttribute('x')) }));
           const xs = [...new Set(t.map(o => o.x))].sort((a, b) => a - b); return xs.map(x => t.filter(o => o.x === x).map(o => o.t)); })() },
-      rightCollapsed: document.getElementById('rightPanel').classList.contains('collapsed')
+      rightCollapsed: document.getElementById('rightPanel').classList.contains('collapsed'),
+      // It must sit OUTSIDE the scrolling .panel-content, else the charts scrolling push the area name away.
+      scopeBarOutsideScroller: !document.querySelector('#bottomPanel .panel-content').contains(document.getElementById('sankeyScopeLabel'))
     };
   });
 
@@ -65,6 +69,8 @@ const { chromium } = require('playwright');
   await p.waitForTimeout(1500);
   const dis = await st();
   ok('district scope set', /^District — /.test(dis.overview), dis.overview);
+  ok('bottom panel names the scoped polygon', dis.overview.indexOf(dis.scopeLabel) === 0, 'label=' + dis.scopeLabel + ' overview=' + dis.overview);
+  ok('scope bar is outside the scrolling panel content', dis.scopeBarOutsideScroller === true, '');
   ok('district investment <= national', dis.inv.loa.reduce((a, x) => a + x, 0) <= cmp.total + 1, JSON.stringify(dis.inv.labels));
   ok('district sankey re-rendered', dis.sankey.rects >= 3, JSON.stringify({ rects: dis.sankey.rects, labels: dis.sankey.labels.slice(0, 3) }));
   ok('right panel auto-opened', dis.rightCollapsed === false, '');
@@ -75,6 +81,7 @@ const { chromium } = require('playwright');
   await p.waitForTimeout(1200);
   const cleared = await st();
   ok('click again clears to national', /All Nepal/.test(cleared.overview) && cleared.pie.data.reduce((a, x) => a + x, 0) === 36, cleared.overview);
+  ok('bottom panel label resets to national', /^All Nepal/.test(cleared.scopeLabel), cleared.scopeLabel);
 
   // --- province scope: turn the District pill off, click the same point ---
   await p.evaluate(() => {
@@ -129,6 +136,8 @@ const { chromium } = require('playwright');
     }
   }
   ok('local level scope reachable', !!palikaHit, palikaHit || ('no palika hit; box=' + JSON.stringify(palikaBox)));
+  const pal = await st();
+  ok('bottom panel follows the palika scope', pal.overview.indexOf(pal.scopeLabel) === 0, 'label=' + pal.scopeLabel + ' overview=' + pal.overview);
 
   await p.screenshot({ path: '/tmp/scope_palika.jpg', type: 'jpeg', quality: 78 });
   ok('no page errors', errs.length === 0, JSON.stringify(errs.slice(0, 3)));

@@ -198,6 +198,8 @@
         #sankeyTable .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
         #sankeyTable tr.total td { font-weight: 600; border-top: 1px solid #ced4da; }
         #sankeyTable tr.empty td { color: #6c757d; }
+        .sankey-scope-bar { flex: 0 0 auto; padding: 6px 15px; font: 12px/14px Arial, Helvetica, sans-serif; color: #1a3c5e; background: #f3f8fc; border-bottom: 1px solid #ced4da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #sankeyScopeLabel { font-weight: 700; color: #0070b6; }
         #chartSankey { display: block; }
         
         .panel-header {

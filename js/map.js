@@ -1547,6 +1547,14 @@
         'Commodity': function(l, pr) { return (pr.subcategories && pr.subcategories[0]) || 'Unclassified'; },
         'Women-led': function(l, pr) { return (pr.women && pr.women.length) ? 'Women-led' : 'Other'; },
         'Year': function(l, pr) { return firstFiscal(pr); },
+        'Restoration area': function(l, pr) {
+            var tot = (pr.area_direct_ha || 0) + (pr.area_contributed_ha || 0);
+            if (!tot) return 'No restoration';
+            if (tot < 10) return '<10 ha';
+            if (tot < 100) return '10\u2013100 ha';
+            if (tot < 500) return '100\u2013500 ha';
+            return '500+ ha';
+        },
         // One org per marker, so this column's node totals still equal the root total (see "one value per org
         // per column"). 'Unnamed' covers the DRAFT-only rows that carry no name.
         'Organization': function(l, pr) { return pr.Name_of_Organization || 'Unnamed'; }

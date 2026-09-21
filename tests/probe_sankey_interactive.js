@@ -23,10 +23,11 @@ const ok = (n, c, d) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (d ? '   ' +
   const sumOf = labels => labels.reduce((a, l) => { const m = /\((\d+)\)$/.exec(l); return a + (m ? +m[1] : 0); }, 0);
 
   ok('six column dropdowns', (await p.evaluate(() => document.querySelectorAll('#sankeyCols select').length)) === 6);
-  ok('each dropdown has — + 8 dimensions', (await p.evaluate(() => [].every.call(document.querySelectorAll('#sankeyCols select'), s => s.options.length === 9))) );
+  ok('each dropdown has — + 9 dimensions', (await p.evaluate(() => [].every.call(document.querySelectorAll('#sankeyCols select'), s => s.options.length === 10))) );
   ok('default chain is Grant type -> Year -> Commodity', JSON.stringify(await cols()) === JSON.stringify(['Grant type', 'Year', 'Commodity', '', '', '']), JSON.stringify(await cols()));
   // User request: the org name is selectable as a stage.
   ok('Organization is an available dimension', await p.evaluate(() => [].some.call(document.querySelectorAll('#sankeyCols select')[0].options, o => o.text === 'Organization')));
+  ok('Restoration area is an available dimension', await p.evaluate(() => [].some.call(document.querySelectorAll('#sankeyCols select')[0].options, o => o.text === 'Restoration area')));
 
   const org0 = await chart('chartSankey');
   ok('both charts draw on load', org0.nodes > 3 && org0.links > 2 && (await chart('chartSankeyAmount')).nodes > 3, JSON.stringify({ nodes: org0.nodes, links: org0.links }));
@@ -56,6 +57,14 @@ const ok = (n, c, d) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (d ? '   ' +
   ok('year column uses fiscal-year labels', org3.labels.slice(1, 4).some(l => /^20\d\d\u2013\d\d \(/.test(l)), JSON.stringify(org3.labels.slice(1, 4)));
   ok('the amount chart mirrors the columns', amt3.labels.length === org3.labels.length && /^FFF \(\$/.test(amt3.labels[0]), JSON.stringify({ org: org3.labels.length, amt: amt3.labels.length }));
   ok('year node sums == org total', sumOf(org3.labels) === 36 || sumOf(org3.labels) > 36, 'sum=' + sumOf(org3.labels));
+
+  // restoration area dimension
+  await setCol(0, 'Restoration area'); await p.waitForTimeout(900);
+  const orgR = await chart('chartSankey');
+  const amtR = await chart('chartSankeyAmount');
+  ok('restoration area column shows ha buckets', orgR.labels.some(l => /No restoration|ha/.test(l)), JSON.stringify(orgR.labels.slice(1,5)));
+  ok('restoration area root still 36', /^FFF \(36\)$/.test(orgR.labels[0]||''), orgR.labels[0]);
+  ok('restoration area amount chart mirrors', amtR.labels.length === orgR.labels.length, JSON.stringify({org:orgR.labels.length, amt:amtR.labels.length}));
 
   // empty chain -> placeholder, then restore
   await setCol(0, ''); await p.waitForTimeout(700);

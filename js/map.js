@@ -267,7 +267,7 @@
     function usd(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
     function evoAmountByYear() {
         var out = FISCAL_LABELS.map(function() { return 0; });
-        if (!moneyBySN) { return out; }        // the geocsv loads asynchronously; we re-render when it lands
+        if (!moneyBySN) { return out; }        // the csv loads asynchronously; we re-render when it lands
         Object.keys(evoFirstFiscalByOrg || {}).forEach(function(orgId) {
             var m = moneyBySN[String(orgId)];
             if (!m) { return; }
@@ -314,7 +314,7 @@
         // ticks highlight
         var tickEls = document.querySelectorAll('#tsTicks span');
         tickEls.forEach(function(el,i){ el.classList.toggle('active', i>=evoFromIdx && i<=evoToIdx); });
-        // the geocsv can land after the table is first built - re-render the amounts once it does
+        // the csv can land after the table is first built - re-render the amounts once it does
         if (!rowsReadyDone) { rowsReady.then(function() { renderEvoTable(); }); }
     }
 
@@ -666,7 +666,7 @@
 
     map.createPane('pane_Grantees');
     map.getPane('pane_Grantees').style.zIndex = 650;
-    // Points come from data/Grantees.combined.geocsv - the single runtime source (geometry + org
+    // Points come from data/Grantees.combined.csv - the single runtime source (geometry + org
     // attributes + grant/women/restoration records + per-org finance). The ajax plugin went with
     // the geojson file: we fill this layer from the parsed rows and fire 'data:loaded' ourselves,
     // so every feature-dependent builder below keeps working unchanged.
@@ -701,7 +701,7 @@
         }
     });
 
-    // ---- The single runtime source: data/Grantees.combined.geocsv ----
+    // ---- The single runtime source: data/Grantees.combined.csv ----
     // One row per grant (plus HH-only rows for orgs without one). Group the rows by S_N in the
     // browser: org attributes, grants, women/restoration records and per-org finance all live here.
     function wktPoint(wkt) {
@@ -716,7 +716,7 @@
     // acronym, sometimes another spelling of the SAME name, sometimes the district that already has its own
     // column ("Dangdunge CFUG (Makawanpur)"). Drop only the redundant half; anything the bracket genuinely
     // adds stays ("AFFON (Association of Family Forest Owners Nepal)" is left alone).
-    // ponytail: display layer, raw names untouched in data/*.geocsv - the pipeline keys off org_name_geojson.
+    // ponytail: display layer, raw names untouched in data/*.csv - the pipeline keys off org_name_geojson.
     function cleanOrgName(name, district) {
         var m = /^([\s\S]*?)\s*\(([^()]*)\)\s*$/.exec(String(name == null ? '' : name));   // one TRAILING bracket
         if (!m) { return name; }
@@ -731,7 +731,7 @@
         if (iw.length <= 3 && norm(outer).indexOf(iw[0]) === 0) { return outer; }   // "(Shiv Nagar CFUG)" on "Shivnagar …"
         return name;
     }
-    // The boundary geojsons shout (DISTRICT: "KATHMANDU", "NAWALPARASI EAST") while the geocsv is title case,
+    // The boundary geojsons shout (DISTRICT: "KATHMANDU", "NAWALPARASI EAST") while the csv is title case,
     // so the same column showed both. Title-case only strings that are ENTIRELY upper case - proper-cased
     // names pass through untouched, and dotted/caps acronyms ("C.F.U.G.", "MI.NA.PA.07") keep their caps.
     function titleCase(s) {
@@ -744,14 +744,14 @@
     var moneyBySN = {};
     var attrsFromCsv = { orgs: [], grants: [] };   // the shape buildEvoData() reads
     var rowsReadyDone = false;
-    var rowsReady = fetch('data/Grantees.combined.geocsv')
-        .then(function(r) { if (!r.ok) { throw new Error('geocsv ' + r.status); } return r.text(); })
+    var rowsReady = fetch('data/Grantees.combined.csv')
+        .then(function(r) { if (!r.ok) { throw new Error('csv ' + r.status); } return r.text(); })
         .then(function(txt) {
             var csvRows = parseCsv(txt.replace(/^\uFEFF/, ''));
             var head = csvRows.shift() || [], ix = {};
             head.forEach(function(h, i) { ix[h.trim()] = i; });
             ['S_N', 'has_geometry', 'WKT', 'org_name_geojson', 'Location_geojson', 'Type_of_Grant_geojson', 'Commodities_geojson']
-                .forEach(function(c) { if (ix[c] === undefined) { console.warn('geocsv: missing column ' + c); } });
+                .forEach(function(c) { if (ix[c] === undefined) { console.warn('csv: missing column ' + c); } });
             var cell = function(r, c) { var i = ix[c]; return (i === undefined || !r[i]) ? '' : r[i].trim(); };
             var byOrg = {};
             csvRows.forEach(function(r) {
@@ -807,7 +807,7 @@
             });
             return byOrg;
         })
-        .catch(function(e) { console.warn('geocsv load failed - the map stays empty', e); return {}; });
+        .catch(function(e) { console.warn('csv load failed - the map stays empty', e); return {}; });
 
     // One marker per org that has coordinates; everything else on the feature is already merged.
     rowsReady.then(function(byOrg) {
@@ -902,7 +902,7 @@
 
     // Filter organizations by Type_of_Grant / Commodities / Organization Type -
     // top horizontal bar (not a map control). Built from the layer_Grantees
-    // 'data:loaded' handler, i.e. once the merged geocsv features are on the map.
+    // 'data:loaded' handler, i.e. once the merged csv features are on the map.
     // The three groups AND-combine: a marker is shown only when its value is
     // checked in EVERY group. A marker whose value for a group is empty/absent
     // (e.g. a grantee with no organization_type) is not constrained by that group.
@@ -1350,7 +1350,7 @@
         return out;
     }
     // Canonical district name from geometry (77 districts cover all of Nepal).
-    // First boundary layer whose polygon contains the point - the geocsv's own province/district/
+    // First boundary layer whose polygon contains the point - the csv's own province/district/
     // municipality strings disagree with the drawn boundaries (wards, spellings, blanks), so geometry wins.
     function nameAt(layer, prop, latlng) {
         var hit = null;
@@ -1451,7 +1451,7 @@
         if (typeof renderInvestment === 'function') { renderInvestment(null, ms); }
         if (typeof renderSankey === 'function') { renderSankey(null, ms); }
     }
-    // Per-org money comes from the served Grantees.combined.geocsv (per-org finance columns, repeated on
+    // Per-org money comes from the served Grantees.combined.csv (per-org finance columns, repeated on
     // every grant row) - first row per S_N wins, the same dedupe make_geocsv.py/summarise_investment.py used.
     // Whole-text CSV parse: cell values in this file contain newlines and commas inside quotes,
     // so line-by-line splitting loses rows.
@@ -1476,7 +1476,7 @@
         var el = document.getElementById('chartInvestment');
         if (!el || typeof Chart === 'undefined') { return; }
         ms = ms || markersIn(scope && scope.layer);
-        // moneyBySN is filled while the geocsv is parsed (see the rowsReady loader above).
+        // moneyBySN is filled while the csv is parsed (see the rowsReady loader above).
         rowsReady.then(function() {
             var money = moneyBySN;
             var g = {};
@@ -1877,7 +1877,7 @@
             });
         }
         var svgEl = document.getElementById('chartSankey');
-        // The sankey is drawn by renderSankey()/renderAggregates() once the features and the geocsv
+        // The sankey is drawn by renderSankey()/renderAggregates() once the features and the csv
         // are in - nothing to draw here (the old "no data yet" placeholder was removed).
     })();
 

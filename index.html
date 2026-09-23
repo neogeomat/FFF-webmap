@@ -40,13 +40,43 @@
     
     <!-- ponytail: the cdn.polyfill.io script was removed - the domain was sold in 2024 and served a
          malicious payload; Promise is native in every browser this map targets. -->
-    <!-- Page styles split out to css/map.css (kept in this position, after the vendored CSS,
-         so the cascade order is unchanged). Re-apply after any qgis2web re-export. -->
-    <link rel="stylesheet" href="css/map.css">
-    <title>FAO Grantees Map</title>
+     <!-- Page styles split out to css/map.css (kept in this position, after the vendored CSS,
+          so the cascade order is unchanged). Re-apply after any qgis2web re-export. -->
+     <link rel="stylesheet" href="css/map.css">
+     <link rel="stylesheet" href="../css/tokens.css">
+     <link rel="stylesheet" href="../css/style.css">
+     <style>
+       /* Site header offset for Webmap: match Figma header 80px */
+       body { padding-top: var(--header-h, 80px); }
+       .site-header { position: fixed; top: 0; inset-inline: 0; z-index: 100; }
+       .map-mode-tabs { top: calc(var(--header-h, 80px) + 12px) !important; }
+       #leftPanel, #rightPanel { top: calc(var(--header-h, 80px) + 0px) !important; }
+       /* Ensure map fills remaining viewport below header */
+       #map { height: calc(100vh - var(--header-h, 80px) - var(--bottom-h, 0px)); }
+     </style>
+     <title>FAO Grantees Map</title>
 </head>
 
 <body>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand-lockup" href="../index.html" aria-label="FAO and Forest and Farm Facility">
+      <img src="../assets/img/logo-fao.png" alt="FAO — Food and Agriculture Organization of the United Nations" class="logo-fao">
+      <span class="logo-sep" aria-hidden="true"></span>
+      <img src="../assets/img/logo-fff.webp" alt="Forest and Farm Facility" class="logo-fff">
+    </a>
+    <button class="nav-toggle" aria-label="Menu"><span></span></button>
+    <nav class="nav" id="siteNav">
+      <a href="../index.html">Home</a>
+      <a href="../our-change.html">Our Change</a>
+      <a href="../sustainable-management.html">Sustainable Management</a>
+      <a href="../value-chains.html">Value Chains</a>
+      <a href="../catalog.html">Catalog</a>
+      <a href="../storymaps.html">Story Maps</a>
+      <a href="index.html" class="active">Web Map</a>
+    </nav>
+  </div>
+</header>
 
     <!-- Top mode switch: Map View vs Evolution of FFF Support -->
     <nav class="map-mode-tabs" id="mapModeTabs" aria-label="Map mode">
@@ -174,12 +204,13 @@
         </div>
     </div>
 
-    <!-- Defer myFuncs.js until after DOM is ready since it's used by inline scripts below -->
-    <script defer src="js/myFuncs.js"></script>
+     <!-- Defer myFuncs.js until after DOM is ready since it's used by inline scripts below -->
+     <script defer src="js/myFuncs.js"></script>
+     <script defer src="../js/main.js"></script>
 
 </body>
 <!-- Page logic split out to js/map.js - plain script (NOT defer) so it keeps the exact execution
-     order the inline block had, ahead of the deferred vendor libs. Re-apply after any qgis2web re-export. -->
+      order the inline block had, ahead of the deferred vendor libs. Re-apply after any qgis2web re-export. -->
 <script src="js/map.js"></script>
 
 </html>

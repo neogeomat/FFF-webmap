@@ -1,4 +1,4 @@
-// FAO FFF grantees map - all page logic, split out of index.html.
+// FAO FFF Nepal grantees map - all page logic, split out of index.html.
 // Loaded as a plain <script src> (NOT defer): every vendored lib here is deferred, so a
 // deferred copy would run after them and change execution order.
 // Re-apply this split after any qgis2web re-export (it rewrites index.html).
@@ -1524,10 +1524,10 @@
         });
     }
 
-    // Sankey: FFF -> Province -> District -> Palika, scoped to the selection. Drawn twice: 'amount'
+    // Sankey: FFF Nepal -> Province -> District -> Palika, scoped to the selection. Drawn twice: 'amount'
     // (each org's LoA+DBG USD, first) and 'orgs' (one unit per organization).
     // ---- Interactive flow columns -------------------------------------------------------------
-    // FFF is the fixed root; each of the 6 dropdowns (#sankeyCols) picks the next column's dimension.
+    // FFF Nepal is the fixed root; each of the 6 dropdowns (#sankeyCols) picks the next column's dimension.
     // One value per org per column - see the ponytail note in renderSankeyInto.
     function firstFiscal(pr) {
         var m = moneyBySN[String(pr.S_N)] || {};
@@ -1615,7 +1615,7 @@
         head.innerHTML = '<tr>' + cols.map(function(c) { return '<th>' + esc(c) + '</th>'; }).join('')
             + '<th class="num">Organizations</th><th class="num">Amount (USD)</th><th class="num">Share</th></tr>';
         body.innerHTML = list.map(function(r) {
-            // cells[0] is the constant FFF root - the other columns already name the stages
+            // cells[0] is the constant FFF Nepal root - the other columns already name the stages
             var tds = r.cells.slice(1).map(function(c) {
                 return '<td' + (c === 'Unassigned' ? ' title="no data for this stage"' : '') + '>' + esc(c) + '</td>';
             }).join('');
@@ -1694,20 +1694,20 @@
             return [];
         }
         var SEP = '\u0000';
-        // One path per marker: FFF -> col1 -> ... -> colk, k = how many dropdowns the user filled.
+        // One path per marker: FFF Nepal -> col1 -> ... -> colk, k = how many dropdowns the user filled.
         // ponytail: ONE value per org per column (a 3-commodity org shows its primary commodity), so every
         // column's node total equals the org/amount total in scope. The alternative - a path per value -
         // makes org counts exceed the visible total and splits money across combinatorial paths.
         var paths = ms.map(function(l) {
             var pr = l.feature.properties;
-            return { cells: ['FFF'].concat(cols.map(function(c) { return String(SANKEY_DIMS[c](l, pr)); })),
+            return { cells: ['FFF Nepal'].concat(cols.map(function(c) { return String(SANKEY_DIMS[c](l, pr)); })),
                      w: sankeyWeight(l, metric) };
         });
         // Column order is PARENT-CONTIGUOUS: inside a column, a node's children follow it, biggest first.
         // d3-sankey keeps the array order within a column, and an interleaved column crosses no matter how
         // many relaxation passes run (measured: 6 crossings at 230px vs 1 at 460px nationally; height is the
         // only real lever, so the charts are 460 tall and the panel scrolls).
-        var order = [['FFF']];
+        var order = [['FFF Nepal']];
         for (var lvl = 1; lvl <= cols.length; lvl++) {
             var kids = {};
             paths.forEach(function(p) {
@@ -1777,7 +1777,7 @@
             .attr('x', function(d) { return d.x0; }).attr('y', function(d) { return d.y0; })
             .attr('width', function(d) { return d.x1 - d.x0; })
             .attr('height', function(d) { return Math.max(1, d.y1 - d.y0); })
-            .attr('fill', function(d) { return d.name === 'FFF' ? '#0070b6' : color(d.name); });
+            .attr('fill', function(d) { return d.name === 'FFF Nepal' ? '#0070b6' : color(d.name); });
         // Labels sit to the RIGHT of every node (last column included). The room is the measured column
         // pitch - next column's x0 minus this x1 - or, for the last column, out to the right edge.
         // Column pitch is ~100px and a district label is ~90-110px, so a character-count guess overlaps

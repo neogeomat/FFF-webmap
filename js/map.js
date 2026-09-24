@@ -744,8 +744,11 @@
     var moneyBySN = {};
     var attrsFromCsv = { orgs: [], grants: [] };   // the shape buildEvoData() reads
     var rowsReadyDone = false;
-    var rowsReady = fetch('data/Grantees.combined.csv')
-        .then(function(r) { if (!r.ok) { throw new Error('csv ' + r.status); } return r.text(); })
+    var PRIMARY_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_WBjatNB23_S8ilmTMZt7ka3WiDEVxN02zXC-3jRZyxhcKGiOSaYcACNtX3drkactW5QH5E7TALZC/pub?gid=1996981092&single=true&output=csv';
+    var FALLBACK_CSV = 'data/Grantees.combined.csv';
+    var rowsReady = fetch(PRIMARY_CSV, {cache:'no-cache'})
+        .then(function(r) { if (!r.ok) { throw new Error('primary csv ' + r.status); } return r.text(); })
+        .catch(function(e){ console.warn('primary Grantees CSV failed, falling back to local', e); return fetch(FALLBACK_CSV, {cache:'no-cache'}).then(function(r){ if(!r.ok) throw new Error('csv '+r.status); return r.text(); }); })
         .then(function(txt) {
             var csvRows = parseCsv(txt.replace(/^\uFEFF/, ''));
             var head = csvRows.shift() || [], ix = {};

@@ -1,7 +1,9 @@
 // Sankey page — multi-select for all 6 columns, OR across columns, empty set = All
 // Shared logic with Webmap/js/sankey.js bottom panel (hybrid), but standalone without map
 (() => {
-  const CSV_URL = 'Webmap/data/Grantees.combined.csv';
+  const PRIMARY_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_WBjatNB23_S8ilmTMZt7ka3WiDEVxN02zXC-3jRZyxhcKGiOSaYcACNtX3drkactW5QH5E7TALZC/pub?gid=1996981092&single=true&output=csv';
+  const FALLBACK_CSV = 'Webmap/data/Grantees.combined.csv';
+  const CSV_URL = PRIMARY_CSV;
   const COLS_DEF = [
     { key: 'Grant type', label: 'Grant type' },
     { key: 'Year', label: 'Year' },
@@ -52,11 +54,21 @@
     const m=s.match(/(\d{4})/); return m? m[1]:'Undated';
   }
 
+  async function fetchCsvWithFallback(){
+    try{
+      const r=await fetch(PRIMARY_CSV,{cache:'no-cache'});
+      if(!r.ok) throw new Error('primary '+r.status);
+      return await r.text();
+    }catch(e){
+      console.warn('primary Grantees CSV failed, falling back to local', e);
+      const r2=await fetch(FALLBACK_CSV,{cache:'no-cache'});
+      if(!r2.ok) throw new Error('CSV '+r2.status+' ('+FALLBACK_CSV+')');
+      return await r2.text();
+    }
+  }
   // Build orgList from CSV
   async function load(){
-    const res=await fetch(CSV_URL,{cache:'no-cache'});
-    if(!res.ok) throw new Error('CSV '+res.status);
-    const text=await res.text();
+    const text=await fetchCsvWithFallback();
     const rows=parseCsv(text.replace(/^\uFEFF/,''));
     const head=rows.shift().map(h=>h.trim());
     const ix={}; head.forEach((h,i)=> ix[h.trim()]=i);

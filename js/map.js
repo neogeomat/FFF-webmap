@@ -1227,7 +1227,7 @@
             url: 'data/Nepal.geojson',
             label: 'Country boundary (Nepal)',
             pane: 'pane_Nepal',
-            color: '#ffffff',
+            color: '#8B4513',
             weight: 3,
             nameField: null,
         }];

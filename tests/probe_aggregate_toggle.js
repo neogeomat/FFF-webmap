@@ -11,6 +11,12 @@ const ok = (n, c, d) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (d ? '   ' +
   await p.goto('http://localhost:6115', { waitUntil: 'networkidle', timeout: 60000 });
   await p.waitForSelector('.org-pin-wrap, .grantee-cluster', { timeout: 30000 });
   await p.waitForTimeout(4000);
+  // Districts are OFF by default (user rule): this probe clicks district polygons, so enable first.
+  await p.evaluate(() => {
+    const cb = document.querySelector('.gf-boundary[data-layer="layer_District"]');
+    if (cb && !cb.checked) cb.closest('label.gf-value').click();
+  });
+  await p.waitForTimeout(800);
   await p.evaluate(() => document.querySelector('#mapModeTabs .mm-tab[data-mode="investment"]').click());
   await p.waitForTimeout(2200);
   await p.evaluate(() => ['leftPanel', 'rightPanel'].forEach(id => document.getElementById(id).classList.remove('collapsed')));

@@ -72,7 +72,13 @@ const ok = (n, c, d) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (d ? '   ' +
   ok('bar mirrors the pie labels and counts', !!bars && JSON.stringify(bars.labels) === JSON.stringify(bars.pieLabels) && JSON.stringify(bars.data) === JSON.stringify(bars.pieData), JSON.stringify(bars));
   ok('bar and pie share the LoA/DBG colours', !!bars && JSON.stringify(bars.colors) === JSON.stringify(bars.pieColors) && bars.colors.indexOf('#0070b6') >= 0, JSON.stringify(bars && bars.colors));
 
-  // 7. scoped update: click a district polygon (via the pin's district) and re-check both charts
+  // 7. scoped update: click a district polygon (via the pin's district) and re-check both charts.
+  // Districts are OFF by default (user rule): enable the pill so the click scopes to district.
+  await p.evaluate(() => {
+    const cb = document.querySelector('.gf-boundary[data-layer="layer_District"]');
+    if (cb && !cb.checked) cb.closest('label.gf-value').click();
+  });
+  await p.waitForTimeout(800);
   const pin = await p.evaluate(() => { const r = document.querySelector('.org-pin-wrap').getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
   await p.mouse.click(pin.x + pin.w + 26, pin.y + pin.h / 2);
   await p.waitForTimeout(1400);

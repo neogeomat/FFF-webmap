@@ -59,6 +59,12 @@ const { chromium } = require('playwright');
   ok('investment total == 2,288,256 USD', Math.abs(cmp.total - 2288256) <= 2, String(cmp.total));
 
   // --- district scope: click just off a visible pin, inside its district ---
+  // Districts are OFF by default (user rule): enable the pill so the click scopes to district.
+  await p.evaluate(() => {
+    const cb = document.querySelector('.gf-boundary[data-layer="layer_District"]');
+    if (cb && !cb.checked) cb.closest('label.gf-value').click();
+  });
+  await p.waitForTimeout(800);
   const pin = await p.evaluate(() => {
     const el = document.querySelector('.org-pin-wrap');
     if (!el) return null;

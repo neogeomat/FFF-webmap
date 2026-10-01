@@ -75,6 +75,12 @@ const { chromium } = require('playwright');
 
   // Zoom to Kabhrepalanchok and click its polygon. The grantee LIST is gone from the UI, so drive the map
   // through its own Leaflet instance (window.layer_District._map) instead of a list row.
+  // Districts are OFF by default (user rule): enable the pill so the click scopes to district, not province.
+  await p.evaluate(() => {
+    const cb = document.querySelector('.gf-boundary[data-layer="layer_District"]');
+    if (cb && !cb.checked) cb.closest('label.gf-value').click();
+  });
+  await p.waitForTimeout(800);
   const found = await p.evaluate(() => {
     let hit = null;
     window.layer_District.eachLayer(l => { if (/KABHREPALANCHOK/i.test((l.feature.properties || {}).DISTRICT || '')) hit = l; });
@@ -85,6 +91,10 @@ const { chromium } = require('playwright');
   });
   ok('Kabhrepalanchok polygon found and zoomed to', !!found, JSON.stringify(found));
   await p.waitForTimeout(1600);
+  // The synthetic cluster hover above parks the hover card: no real mouseout ever fires for a
+  // dispatched event, so the card (positioned next to the cluster) sits over the click point below.
+  // A real user always produces a mouseout by moving the pointer, so dismiss the artifact directly.
+  await p.evaluate(() => { const el = document.querySelector('.info-hover-popup'); if (el) { el.style.display = 'none'; el.innerHTML = ''; } });
   await p.mouse.click(700, 300);   // map centre-ish: clear of the right (340px) and bottom (350px) panels
   await p.waitForTimeout(1800);
 

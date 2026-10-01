@@ -17,32 +17,17 @@ const { chromium } = require('playwright');
     const sizes = Array.from(document.querySelectorAll('.grantee-cluster')).map(c => parseInt(c.textContent.trim(), 10) || 0);
     const pins = document.querySelectorAll('.org-pin-wrap').length;
     const members = sizes.reduce((a, x) => a + x, 0);
-    return {
-      pins, clusters: sizes.length, members, total: pins + members,
-      names: Array.from(document.querySelectorAll('.org-tip-name')).map(n => n.textContent.trim())
-    };
+    return { pins, clusters: sizes.length, members, total: pins + members };
   });
 
-  // Expected women-led set, read off the geocsv (the page's single runtime source): 18 orgs carry
+  // Markers carry no permanent tooltips (user request) - names live in the hover cards.
+
+  // Expected women-led set, read off the csv (the page's single runtime source): 18 orgs carry
   // women_json records, 13 of them have coordinates (WKT) and therefore render. Regenerate with:
-  //   python3 -c "import csv;r=list(csv.DictReader(open('Webmap/data/Grantees.combined.geocsv',encoding='utf-8-sig')));print(sorted({x['org_name_geojson'] for x in r if x['women_json'].strip() and x['WKT'].strip()}))"
-  const expNames = [
-    'Aadhar Ekata  Mahila Samuha',
-    'AFFON (Association of Family Forest Owners Nepal)',
-    'Jagaran Community Development Center / Madhyabindu Lemon, Fruits and Vegetable Production Farmer Group',
-    'NIWF (National Indigenous Women Forum)',
-    'Binayi Samudayik Ban Upobhokta Samu (BSBUS)',
-    'Sakriya Mahila Krishi Sahakari Sanstha Limited (SMKSSL)',
-    'Himawanti Nepal (HN)                      Risheshwor Mahila Allo Kapada Utpadan Udhyog, located in Thaha Municipality-4, Makwanpur district',
-    'Ratu Mahila Samuhik Ban U. Samuh (Ratu Mahila CFUG)',
-    'KEMLIPUR C.F.U.G. MI.NA.PA.07 (Kemalipur CFUG)',
-    'Samudayak Udhami Mahila Krishi Krishak Samuha',
-    'Sana Kishan Krishi Sahakari Sastha',
-    'Sundardeep Mahila Machhapalan S.S.L',
-    'Coffee Sahakari Sangh Ltd.'
-  ];
+  //   python3 -c "import csv;r=list(csv.DictReader(open('Webmap/data/Grantees.combined.csv',encoding='utf-8-sig')));print(sorted({x['org_name_geojson'] for x in r if x['women_json'].strip() and x['WKT'].strip()}))"
+  // (Names only used for the log line below - markers carry no permanent tooltips, so membership
+  // is asserted by count, not by label.)
   const exp = { womenOrgs: 18, rendered: 13 };
-  const norm = s => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
   console.log('expected: ' + exp.womenOrgs + ' women-led orgs with records, ' + exp.rendered + ' with geometry');
 
   const tabs = await p.evaluate(() => Array.from(document.querySelectorAll('.mm-tab')).map(t => [t.getAttribute('data-mode'), t.textContent.trim()]));
@@ -60,8 +45,7 @@ const { chromium } = require('playwright');
   ok('women tab is the active tab', await isTab('women'), '');
   ok('mode persisted to localStorage', await p.evaluate(() => localStorage.getItem('fff.mapMode') === 'women'), '');
   ok('no new marker style (.womens-pin)', await p.evaluate(() => document.querySelectorAll('.womens-pin').length === 0), '');
-  const stray = w.names.filter(n => !expNames.some(e => norm(e) === norm(n)));
-  ok('visible tooltip names all women-led', stray.length === 0, JSON.stringify(stray));
+  ok('no permanent marker tooltips', await p.evaluate(() => document.querySelectorAll('.org-tip-name, .leaflet-tooltip').length === 0), '');
 
   // composition: clearing the commodity pills must hide everything, never resurrect a non-women org
   await p.waitForTimeout(500);
@@ -74,8 +58,7 @@ const { chromium } = require('playwright');
   await p.waitForTimeout(1500);
   const restored = await shown();
   ok('select-all restores the women-led set', restored.total === exp.rendered, 'after=' + restored.total + ' expected=' + exp.rendered);
-  const stray2 = restored.names.filter(n => !expNames.some(e => norm(e) === norm(n)));
-  ok('no non-women org resurrected by pill churn', stray2.length === 0, JSON.stringify(stray2));
+  ok('no non-women org resurrected by pill churn', restored.total === exp.rendered, 'after=' + restored.total);
 
   await p.reload({ waitUntil: 'networkidle' });
   await p.waitForSelector('.grantee-cluster, .org-pin-wrap', { timeout: 20000 });

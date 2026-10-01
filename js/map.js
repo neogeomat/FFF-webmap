@@ -675,15 +675,8 @@
         pane: 'pane_Grantees',
         onEachFeature: pop_Grantees,
         pointToLayer: function(feature, latlng) {
-            var marker = L.marker(latlng, style_Grantees_div_icon(feature));
-            marker.bindTooltip((feature.properties.Name_of_Organization || ('S.N. ' + (feature.properties.S_N != null ? feature.properties.S_N : ''))), {
-                direction: 'top',
-                className: 'org-tip-name',
-                offset: [0, -12],
-                permanent: true,        // name always visible, no hover needed
-                interactive: false       // let pointer pass through to the marker
-            });
-            return marker;
+            // No permanent tooltip (user request): org names live in the hover card.
+            return L.marker(latlng, style_Grantees_div_icon(feature));
         },
     });
     // Cluster the grantee points; orange clusters to distinguish from blue individual pins
@@ -1257,14 +1250,14 @@
                     window[spec.layerVar] = layer;
                     layerControl.addOverlay(layer, spec.label);
                     if (spec.layerVar === 'layer_Nepal' || spec.layerVar === 'layer_Chure' ||
-                            spec.layerVar === 'layer_District' || spec.layerVar === 'layer_Province') {
+                            spec.layerVar === 'layer_Province') {
                             layer.addTo(map);
                         }
                 });
         })).then(function() {
             // Build the boundary toggle pills in the top filter bar now that the
             // feature counts are known. Country was added to the map above;
-            // District/Province default OFF and are toggled via these pills.
+            // Province/Chure default ON, District/LocalLevel default OFF (user rule).
             var bar = document.getElementById('granteeFilterBar');
             if (bar) {
                 var district = window.json_District ? window.json_District.features.length : 0;
@@ -1274,7 +1267,7 @@
                 bar.insertAdjacentHTML('beforeend',
                     '<div class="gf-group gf-group-sep">' +
                         '<span class="gf-title">Boundaries</span>' +
-                        '<label class="gf-value checked"><input type="checkbox" class="gf-boundary" data-layer="layer_District" checked>' +
+                        '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_District">' +
                         '<span class="gf-box">&#10003;</span><span>District boundaries (' + district + ')</span></label>' +
                         '<label class="gf-value"><input type="checkbox" class="gf-boundary" data-layer="layer_LocalLevel">' +
                         '<span class="gf-box">&#10003;</span><span>Local Level boundaries (' + localLevel + ')</span></label>' +

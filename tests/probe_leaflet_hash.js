@@ -50,6 +50,23 @@ const num = s => parseFloat(s);
      `${deepLink} -> ${JSON.stringify(restored)}`);
   ok('the restored view is still reflected in the hash', HASH_RE.test(restored.hash), restored.hash);
 
+  // 4. The startup view must arrive in ONE step. An intermediate view means the map visibly
+  // re-centred on load - either the config centre (27.700/83.000) or the grantees' own bbox
+  // (28.290/84.001, which crops Nepal's west/east edges) - before settling on the country extent.
+  await load(BASE);
+  const views = await p.evaluate(async () => {
+    const seen = [];
+    const iv = setInterval(() => {
+      if (location.hash && seen[seen.length - 1] !== location.hash) { seen.push(location.hash); }
+    }, 20);
+    await new Promise(r => setTimeout(r, 4000));
+    clearInterval(iv);
+    return seen;
+  });
+  const stray = views.filter(v => !/^#8\/28\.4[23]\d\/84\.1[23]\d$/.test(v));
+  ok('the startup view is the country extent from the first paint (no intermediate re-centre)',
+     views.length >= 1 && views.length <= 2 && stray.length === 0, views.join(' -> ') || '(none)');
+
   ok('no page errors', errs.length === 0, JSON.stringify(errs.slice(0, 2)));
   await b.close();
 })();

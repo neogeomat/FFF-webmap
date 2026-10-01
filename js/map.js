@@ -604,20 +604,40 @@
             zoomControl: true,
             maxZoom: 28,
             minZoom: 1,
-            center: [27.7, 83.0],   // Nepal grantee centroid
+            center: [27.7, 83.0],   // only the pre-fit fallback; the fit below lands on the country
             zoom: 7
         })
     // Deep links: the URL hash tracks zoom/lat/lng, and a load WITH a hash restores that view
     // (setBounds() below is skipped in that case so the startup fit cannot clobber it).
     var hadHash = !!location.hash;
+    // Frame the country on the FIRST paint, unless the URL carried a deep link (then L.Hash wins).
+    // Both fits that follow (setBounds() on data load, then fitNepal() ~400ms later) want this same
+    // extent, so starting anywhere else meant the map sat off-centre on the config centre for ~1.4s
+    // and then visibly panned+zoomed into place. Extent mirrors data/Nepal.geojson - only this first
+    // paint uses it, the real fits read the loaded layer.
+    if (!hadHash) {
+        // animate:false - a fit the user never asked for must not play as a pan/zoom animation on
+        // top of the constructor's setView (that IS the visible jump: config centre -> country).
+        map.fitBounds(L.latLngBounds([[26.348, 80.058], [30.473, 88.201]]), { padding: [8, 8], animate: false });
+    }
     new L.Hash(map);
     map.attributionControl.setPrefix('<a href="http://leafletjs.com " title="A JS library for interactive maps ">Leaflet</a>');
     var bounds_group = new L.featureGroup([]);
 
     function setBounds() {
         if (bounds_group.getLayers().length && !hadHash) {
-            // keep the fitted content clear of the floating legend + collapsed right
-            // panel on the east edge (legend is 190px wide + gaps ≈ 200px)
+            // Fit the COUNTRY, not the pins' own bbox. bounds_group holds only clusters_Grantees, so
+            // fitting it here framed the grantee extent (80.4-86.5E) and cropped Nepal's west/east
+            // edges - then the ~390ms-later fitNepal() widened back to the country polygon, i.e. the
+            // map visibly re-centred twice on every load. Same extent + padding as fitNepal(), so
+            // that later call is now a visual no-op.
+            var nb = (window.layer_Nepal && window.layer_Nepal.getBounds) ? window.layer_Nepal.getBounds() : null;
+            if (nb && nb.isValid && nb.isValid()) {
+                map.fitBounds(nb, { padding: [8, 8] });
+                return;
+            }
+            // Nepal not loaded yet (both are async fetches): fall back, but keep the legend clear
+            // of the content on the east edge (legend is 190px wide + gaps ≈ 200px).
             map.fitBounds(bounds_group.getBounds(), { paddingBottomRight: [200, 0] });
         }
     }

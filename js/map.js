@@ -99,7 +99,7 @@
             var active = btn.getAttribute('data-mode') === mode;
             btn.classList.toggle('active', active);
         });
-        // When entering evolution, open bottom panel to show the table (if collapsed)
+        // When entering evolution, open the Info panel to show the table (if collapsed)
         if (isEvo) {
             var bp = document.getElementById('rightPanel');
             if (bp && bp.classList.contains('collapsed')) {
@@ -1232,7 +1232,7 @@
             nameField: null,
         }];
 
-        // Clicking a boundary writes a short overview into the Aggregate panel
+        // Clicking a boundary writes a short overview into the Info panel
         // (#aggOverview), leaving the placeholder charts below it untouched.
         function showOverview(title, msg) { setAggOverview(title, msg); }
 
@@ -1282,11 +1282,11 @@
                         '<span class="gf-box">&#10003;</span><span>Province boundaries (' + province + ')</span></label>' +
                         '<label class="gf-value checked"><input type="checkbox" class="gf-boundary" data-layer="layer_Chure" checked>' +
                         '<span class="gf-box">&#10003;</span><span>Chure boundaries (' + chure + ')</span></label>' +
-                        // User rule: whether clicking a polygon OPENS the Aggregate panel is a preference,
+                        // User rule: whether clicking a polygon OPENS the Info panel is a preference,
                         // not a fixed behaviour. Same pill styling as the layer toggles above.
-                        '<label class="gf-value checked" title="Open the Aggregate panel when a boundary is clicked">' +
+                        '<label class="gf-value checked" title="Open the Info panel when a boundary is clicked">' +
                         '<input type="checkbox" id="autoOpenAggregate" checked>' +
-                        '<span class="gf-box">&#10003;</span><span>Auto-open Aggregate on click</span></label>' +
+                        '<span class="gf-box">&#10003;</span><span>Auto-open Info on click</span></label>' +
                     '</div>'
                 );
                 bar.querySelectorAll('.gf-boundary').forEach(function(cb) {
@@ -1381,7 +1381,10 @@
         if (card) { card.style.display = ''; }
     }
     function openRightPanel() {
-        // The user can turn the auto-open off (Layers panel -> "Auto-open Aggregate on click"): with it off
+        // The Info panel only appears in Evolution mode; elsewhere a polygon click still scopes the
+        // charts, it just cannot pop a hidden panel open.
+        if (!document.body.classList.contains('map-mode-evolution')) { return; }
+        // The user can turn the auto-open off (Layers panel -> "Auto-open Info on click"): with it off
         // a polygon click still scopes the charts, it just does not pop the panel open.
         if (window.autoOpenAggregate === false) { return; }
         var rp = document.getElementById('rightPanel');
@@ -1850,7 +1853,7 @@
         setScope(c);
     });
 
-    // Aggregate panel: empty placeholder charts (no real data yet).
+    // Info panel charts: empty placeholders until scoped data arrives.
     // Chart.js, d3 and d3.sankey are loaded from js/vendor/* in <head>.
     (function() {
         var hasChart = (typeof Chart !== 'undefined');

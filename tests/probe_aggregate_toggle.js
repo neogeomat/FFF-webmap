@@ -1,6 +1,7 @@
-// Panel tabs + the auto-open preference.
-// User requests: (1) the Aggregate tab must move with the bottom panel like the Layers tab, (2) the Layers
-// tab had a gap on its left, (3) clicking a polygon must not ALWAYS open the right panel - make it a toggle.
+// Info panel + the auto-open preference.
+// User rules: (1) the right panel is renamed Info and appears ONLY in Evolution mode,
+// (2) the Layers tab sits flush and rides the bottom strip, (3) clicking a polygon must
+// not ALWAYS open the Info panel - auto-open is a toggle.
 const { chromium } = require('playwright');
 const ok = (n, c, d) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (d ? '   ' + d : '')); if (!c) process.exitCode = 1; };
 (async () => {
@@ -15,28 +16,36 @@ const ok = (n, c, d) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (d ? '   ' +
   await p.evaluate(() => ['leftPanel', 'rightPanel'].forEach(id => document.getElementById(id).classList.remove('collapsed')));
   await p.waitForTimeout(800);
 
+  const disp = id => p.evaluate(i => getComputedStyle(document.getElementById(i)).display, id);
   const geo = () => p.evaluate(() => {
     const r = id => document.getElementById(id).getBoundingClientRect();
-    const lp = r('leftPanel'), rp = r('rightPanel'), lt = r('leftPanelToggle'), rt = r('rightPanelToggle'), bp = r('bottomPanel');
-    return { bpTop: Math.round(bp.top), ltTop: Math.round(lt.top), rtTop: Math.round(rt.top),
-             gapL: Math.round(lt.left - lp.right), gapR: Math.round(rp.left - rt.right), lpBottom: Math.round(lp.bottom) };
+    const lp = r('leftPanel'), lt = r('leftPanelToggle'), bp = r('bottomPanel');
+    return { bpTop: Math.round(bp.top), ltTop: Math.round(lt.top),
+             gapL: Math.round(lt.left - lp.right), lpBottom: Math.round(lp.bottom) };
   });
 
+  // 1. Investment mode: the Info panel (and its tab) is hidden; the Layers tab sits flush.
+  ok('Info panel hidden outside Evolution mode', await disp('rightPanel') === 'none', await disp('rightPanel'));
   const before = await geo();
-  // 1. Both tabs sit flush on their panel edge - no gap (the Layers tab used to float 85px out).
-  ok('no gap on either toggle', before.gapL <= 1 && before.gapR <= 1, JSON.stringify({ gapL: before.gapL, gapR: before.gapR }));
+  ok('no gap on the Layers toggle', before.gapL <= 1, JSON.stringify({ gapL: before.gapL }));
 
-  // 2. Drag the bottom panel up: both tabs must ride with it (the Aggregate tab used to stay put).
+  // 2. Drag the bottom panel up: the Layers tab rides with it.
   const bar = await p.evaluate(() => { const r = document.getElementById('bottomResize').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + 3 }; });
   await p.mouse.move(bar.x, bar.y); await p.mouse.down();
   await p.mouse.move(bar.x, bar.y - 240, { steps: 12 }); await p.mouse.up();
   await p.waitForTimeout(1200);
   const after = await geo();
   ok('the Layers tab moves with the strip', after.ltTop < before.ltTop - 50, JSON.stringify({ before: before.ltTop, after: after.ltTop }));
-  ok('the Aggregate tab moves with the strip too', after.rtTop < before.rtTop - 50, JSON.stringify({ before: before.rtTop, after: after.rtTop }));
-  ok('both tabs stay level with each other', Math.abs(after.ltTop - after.rtTop) <= 2, JSON.stringify({ l: after.ltTop, r: after.rtTop }));
+  ok('Info panel still hidden after the drag', await disp('rightPanel') === 'none', await disp('rightPanel'));
 
-  // 3. The auto-open preference.
+  // 3. Evolution mode: the Info panel appears, toggle labeled Info.
+  await p.evaluate(() => document.querySelector('#mapModeTabs .mm-tab[data-mode="evolution"]').click());
+  await p.waitForTimeout(2200);
+  ok('Info panel appears in Evolution mode', await disp('rightPanel') !== 'none', await disp('rightPanel'));
+  const infoLabel = await p.evaluate(() => document.querySelector('#rightPanelToggle .gf-label').textContent.trim());
+  ok('the toggle is labeled Info', infoLabel === 'Info', infoLabel);
+
+  // 4. The auto-open preference (in Evolution, where the panel can open).
   const pill = () => p.evaluate(() => { const c = document.getElementById('autoOpenAggregate'); return c ? { exists: true, checked: c.checked, flag: window.autoOpenAggregate } : { exists: false }; });
   ok('the auto-open pill exists and defaults on', (await pill()).exists && (await pill()).checked === true, JSON.stringify(await pill()));
 
@@ -105,6 +114,27 @@ const ok = (n, c, d) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (d ? '   ' +
   await p.waitForTimeout(1400);
   const on = await state();
   ok('auto-open ON: the panel opens again', on.collapsed === false && scoped(on.scope), JSON.stringify(on));
+
+  // 5. Overview mode: a polygon click still scopes the charts, but the panel stays hidden.
+  await p.evaluate(() => document.querySelector('#mapModeTabs .mm-tab[data-mode="overview"]').click());
+  await p.waitForTimeout(1400);
+  ok('Info panel hidden back in overview', await disp('rightPanel') === 'none', await disp('rightPanel'));
+  // Pan to yet another project district: re-clicking the same polygon would clear the scope (by design).
+  await p.evaluate(() => {
+    const l = window.layer_District; const m = l._map; const seen = [];
+    l.eachLayer(function(x) { if (x.feature.properties.project_area === 'y') { seen.push(x); } });
+    const cur = m.getCenter();
+    let best = seen[0], bestD = Infinity;
+    seen.forEach(function(x) { const c = x.getBounds().getCenter(); const d = m.distance(cur, c); if (d > 1000 && d < bestD) { bestD = d; best = x; } });
+    m.setView(best.getBounds().getCenter(), 9);
+  });
+  await p.waitForTimeout(1400);
+  const spot3 = await locate();
+  await p.mouse.click(spot3.x, spot3.y);
+  await p.waitForTimeout(1400);
+  const ov = await state();
+  ok('overview click scopes the charts', scoped(ov.scope), JSON.stringify(ov));
+  ok('overview click cannot open the hidden panel', await disp('rightPanel') === 'none', await disp('rightPanel'));
 
   ok('no page errors', errs.length === 0, JSON.stringify(errs.slice(0, 2)));
   await b.close();

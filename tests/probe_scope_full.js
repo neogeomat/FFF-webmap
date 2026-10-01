@@ -73,7 +73,8 @@ const { chromium } = require('playwright');
   ok('scope bar is outside the scrolling panel content', dis.scopeBarOutsideScroller === true, '');
   ok('district investment <= national', dis.inv.loa.reduce((a, x) => a + x, 0) <= cmp.total + 1, JSON.stringify(dis.inv.labels));
   ok('district sankey re-rendered', dis.sankey.rects >= 3, JSON.stringify({ rects: dis.sankey.rects, labels: dis.sankey.labels.slice(0, 3) }));
-  ok('right panel auto-opened', dis.rightCollapsed === false, '');
+  ok('Info panel stays hidden outside Evolution (charts still scope)',
+    await p.evaluate(() => getComputedStyle(document.getElementById('rightPanel')).display === 'none'), '');
   await p.screenshot({ path: '/tmp/scope_district.jpg', type: 'jpeg', quality: 78 });
 
   // click again = clear

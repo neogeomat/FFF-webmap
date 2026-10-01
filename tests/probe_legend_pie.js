@@ -39,7 +39,11 @@ const ok = (n, c, d) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (d ? '   ' +
   const s3 = await state();
   ok('legend follows the LEFT panel back to the edge', s3.left <= 20 && s3.rightCollapsed === false, JSON.stringify(s3));
 
-  // 5. pie colours: sample the canvas for FAO blue and orange
+  // 5. pie colours: sample the canvas for FAO blue and orange. The Info panel only renders in
+  // Evolution mode, so force it visible for the pixel read (Chart.js sizes to 0 in a display:none
+  // ancestor) and restore right after - the data assertions below run against the live charts.
+  await p.evaluate(() => { const rp = document.getElementById('rightPanel'); rp.style.setProperty('display', 'block', 'important'); });
+  await p.waitForTimeout(900);
   const cols = await p.evaluate(() => {
     const near = (r, g, b2, t, tol) => Math.abs(r - t[0]) <= tol && Math.abs(g - t[1]) <= tol && Math.abs(b2 - t[2]) <= tol;
     const count = (el, target, tol) => {
@@ -55,6 +59,7 @@ const ok = (n, c, d) => { console.log((c ? 'PASS ' : 'FAIL ') + n + (d ? '   ' +
   });
   ok('pie has FAO-blue pixels (LoA slice)', cols.blue > 300, JSON.stringify(cols));
   ok('pie has orange pixels (DBG slice)', cols.orange > 100, JSON.stringify(cols));
+  await p.evaluate(() => { const rp = document.getElementById('rightPanel'); rp.style.removeProperty('display'); });
 
   // 6. the LoA/DBG bar mirrors the pie
   const bars = await p.evaluate(() => {

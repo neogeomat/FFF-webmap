@@ -245,6 +245,9 @@
            takes the whole height everywhere else. `display: flex` = .map-panel's own layout. */
         body:not(.map-mode-investment) #bottomPanel { display: none !important; }
         body.map-mode-investment #bottomPanel { display: flex; }
+        /* The Info (right) panel exists only in Evolution mode (user rule), like the bottom
+           panel exists only in Investment mode. Toggle + charts hide with it. */
+        body:not(.map-mode-evolution) #rightPanel { display: none !important; }
         /* …and with no strip reserved, the overlay panels use the full height outside that mode */
         body:not(.map-mode-investment) #leftPanel,
         body:not(.map-mode-investment) #rightPanel { bottom: 12px; }
@@ -256,7 +259,7 @@
             max-height: none;
         }
         
-        /* Aggregate (right) panel — now on the RIGHT side (#rightPanel holds charts + legend).
+        /* Info (right) panel — now on the RIGHT side (#rightPanel holds charts + legend).
            No `bottom` here: the shared rule above pins it to `calc(var(--bottom-h) + 12px)` so it (and its
            toggle tab) tracks the draggable strip like the Layers panel. A hard-coded bottom broke that. */
         #rightPanel {

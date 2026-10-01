@@ -27,10 +27,12 @@
     <script src="js/jquery.min.js"></script>
     <script src="js/leaflet.js"></script>
     <script src="js/leaflet.markercluster.js"></script>
+    <!-- Leaflet-hash is instantiated by js/map.js, which is a plain (non-deferred) script and
+         therefore runs BEFORE the deferred block - keep this one synchronous or L.Hash is undefined. -->
+    <script src="js/leaflet-hash.js"></script>
     
     <!-- Non-critical scripts deferred for faster initial render -->
     <script defer src="js/bootstrap.bundle.min.js"></script>
-        <script defer src="js/leaflet-hash.js"></script>
     <!-- ponytail: dropped 9 plugins nothing references (search/timeline-slider/labelgun+rbush/
          Autolinker/labels.js/pattern/rotatedMarker/qgis2web_expressions + their CSS).
          Re-add from the qgis2web export if a future feature needs one. -->
@@ -108,6 +110,21 @@
 
     <!-- Full-screen map -->
     <div id="map"></div>
+
+    <!-- SVG hatch pattern for the Chure band. Leaflet has no pattern support and the leaflet-pattern
+         plugin is not vendored here, so this is the plugin-free equivalent: fill="url(#chureHatch)"
+         resolves document-wide. Zero-size + absolute (never display:none - that breaks resolution).
+         userSpaceOnUse keeps the hatch a constant on-screen size at every zoom.
+         DARK, not #27ae60: the forest overlay is a solid rgb(34,139,34) fill and a mid-green stripe
+         over it is a 1.5:1 contrast ratio (invisible). This deep green reads on the white canvas
+         and on the forest alike. -->
+    <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+      <defs>
+        <pattern id="chureHatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="8" stroke="#0b3d1f" stroke-width="2.4"></line>
+        </pattern>
+      </defs>
+    </svg>
 
     <!-- Commodity legend — floating overlay, fitted to contents, moves with panels -->
     <div id="commodityLegend" class="commodity-legend" aria-label="Commodity legend"></div>

@@ -35,6 +35,10 @@ Run
     node tests/probe_legend_pie.js       # legend placement + LoA/DBG pie & bar colours
     node tests/probe_evo_amount.js       # evolution grant-amount column adds up to the national total
     node tests/probe_evo_fit.js          # the evolution table fits inside the 340px panel
+    node tests/probe_forest_fade.js      # forest overlay (EXPERIMENT) opacity 1 at z8 -> 0 at z13, clamped; Layers pill + switcher entries
+    node tests/probe_leaflet_hash.js     # deep links: hash tracks the view, a hashed URL restores it
+    node tests/probe_outside_mask.js     # exterior mask: neutral grey (not white), opaque, non-interactive, below boundaries
+    node tests/probe_boundary_colors.js  # boundary strokes pairwise distinct + Chure hatch paints over the forest (WCAG ratio + pixel A/B)
     node tests/measure_load.js           # NOT a pass/fail probe: prints page weight + startup timing
 
 Boundary rebuilds

@@ -607,12 +607,15 @@
             center: [27.7, 83.0],   // Nepal grantee centroid
             zoom: 7
         })
-        // var hash = new L.Hash(map);
+    // Deep links: the URL hash tracks zoom/lat/lng, and a load WITH a hash restores that view
+    // (setBounds() below is skipped in that case so the startup fit cannot clobber it).
+    var hadHash = !!location.hash;
+    new L.Hash(map);
     map.attributionControl.setPrefix('<a href="http://leafletjs.com " title="A JS library for interactive maps ">Leaflet</a>');
     var bounds_group = new L.featureGroup([]);
 
     function setBounds() {
-        if (bounds_group.getLayers().length) {
+        if (bounds_group.getLayers().length && !hadHash) {
             // keep the fitted content clear of the floating legend + collapsed right
             // panel on the east edge (legend is 190px wide + gaps ≈ 200px)
             map.fitBounds(bounds_group.getBounds(), { paddingBottomRight: [200, 0] });
@@ -1163,6 +1166,28 @@
         map.getPane('pane_Chure').style.zIndex = 425;
         map.getPane('pane_Nepal').style.zIndex = 430;
 
+        // Forest cover from data/lc2022.tif (class code=4), pre-rendered to the tracked
+        // data/forest4_preview.png (2048px, transparent elsewhere); the source .tif stays untracked.
+        map.createPane('pane_Forest');
+        map.getPane('pane_Forest').style.zIndex = 405;
+        var layer_Forest = L.imageOverlay('data/forest4_preview.png',
+            [[26.3457741, 80.0584869], [30.4731002, 88.2018048]],
+            { pane: 'pane_Forest', opacity: 0.85, interactive: false });
+        layer_Forest.addTo(map);
+        window.layer_Forest = layer_Forest;
+        // Same handle for both toggles: the Leaflet layer switcher AND the Layers-panel pill below
+        // (.gf-boundary[data-layer="layer_Forest"] resolves window[layer_Forest], so no extra JS).
+        layerControl.addOverlay(layer_Forest, 'Forest cover (forest4_preview)');
+
+        // Forest fades out as you zoom in: opacity 1 at z8, 0 at z13, linear between (clamped outside).
+        // ponytail: straight ramp; swap in a curve only if the fade reads uneven mid-range.
+        function updateForestOpacity() {
+            var o = (13 - map.getZoom()) / 5;
+            layer_Forest.setOpacity(o < 0 ? 0 : o > 1 ? 1 : o);
+        }
+        map.on('zoomend', updateForestOpacity);
+        updateForestOpacity();
+
         var specs = [{
             varName: 'json_District',
             layerVar: 'layer_District',
@@ -1178,7 +1203,10 @@
             styleFn: function(feature) {
                 var pa = (feature && feature.properties) ? feature.properties.project_area : null;
                 if (pa === 'y') {
-                    return { fillColor: '#27ae60', fillOpacity: 0.5, color: '#1e8449', weight: 2, opacity: 1 };
+                    // NOT GREEN: the Chure band (pane z425, above this one) is green-hatched, so a green
+                    // district fill underneath it was unreadable. Brick red is the only hue family left
+                    // (Chure green, Province #e67e22, LocalLevel #ffd400, Nepal #8B4513, others #3388ff).
+                    return { fillColor: '#c0392b', fillOpacity: 0.3, color: '#922b21', weight: 2, opacity: 1 };
                 }
                 return { fillColor: '#3388ff', fillOpacity: 0.04, color: '#3388ff', weight: 0.8, opacity: 0.35 };
             }
@@ -1209,10 +1237,16 @@
             url: 'data/chureDissolved.geojson',
             label: 'Chure boundaries',
             pane: 'pane_Chure',
-            color: '#27ae60',
-            weight: 1.5,
+            // Green, but HATCHED (index.html defines #chureHatch as a zero-size SVG <pattern>):
+            // this pane (z425) sits above District (z410), so a green fill would sit exactly on top
+            // of the districts it crosses - the hatch reads as a band draped over them instead.
+            // Districts are brick red now precisely so this green stays free (see the styleFn above).
+            // Deep green, not #27ae60: the forest overlay underneath is solid rgb(34,139,34).
+            color: '#0b3d1f',
+            fillColor: 'url(#chureHatch)',
+            weight: 2.5,
             nameField: null,
-            fillOpacity: 0.12,
+            fillOpacity: 1,
             fill: true
         }, {
             varName: 'json_Nepal',
@@ -1240,6 +1274,7 @@
                             var base = {
                                 fillOpacity: (feature && feature.properties && feature.properties.project_area) ? 0.12 : (spec.fillOpacity || 0),
                                 color: spec.color,
+                                fillColor: spec.fillColor,
                                 weight: spec.weight,
                                 dashArray: spec.dashArray
                             };
@@ -1255,6 +1290,25 @@
                         }
                 });
         })).then(function() {
+            // Grey out everything exterior to the Nepal boundary so only Nepal is visible in every
+            // Nepal rings as holes; sits above tiles (~200), below boundaries (410+).
+            // NOT white: the #map canvas is #ffffff too (css/map.css), so a white mask would make
+            // "outside Nepal" and "inside, no base layer" the same flat colour. #dee2e6 is the
+            // app's neutral (same family as the #ced4da borders) and reads as "not the study area".
+            // Runs here (not above) because window.json_Nepal only exists after the fetches.
+            // GeoJSON [lng,lat] -> Leaflet [lat,lng].
+            map.createPane('pane_OutsideMask');
+            map.getPane('pane_OutsideMask').style.zIndex = 300;
+            var worldRing = [[-90, -180], [-90, 180], [90, 180], [90, -180]];
+            var nepalHoles = window.json_Nepal.features[0].geometry.coordinates.map(function(ring) {
+                return ring.map(function(pt) { return [pt[1], pt[0]]; });
+            });
+            var layer_OutsideMask = L.polygon([worldRing].concat(nepalHoles), {
+                pane: 'pane_OutsideMask', stroke: false, fill: true,
+                fillColor: '#dee2e6', fillOpacity: 1, interactive: false
+            });
+            layer_OutsideMask.addTo(map);
+            window.layer_OutsideMask = layer_OutsideMask;
             // Build the boundary toggle pills in the top filter bar now that the
             // feature counts are known. Country was added to the map above;
             // Province/Chure default ON, District/LocalLevel default OFF (user rule).
@@ -1275,6 +1329,10 @@
                         '<span class="gf-box">&#10003;</span><span>Province boundaries (' + province + ')</span></label>' +
                         '<label class="gf-value checked"><input type="checkbox" class="gf-boundary" data-layer="layer_Chure" checked>' +
                         '<span class="gf-box">&#10003;</span><span>Chure boundaries (' + chure + ')</span></label>' +
+                        // Forest overlay is not a boundary but rides the same mechanism: the shared
+                        // handler resolves window[data-layer], and window.layer_Forest exists.
+                        '<label class="gf-value checked"><input type="checkbox" class="gf-boundary" data-layer="layer_Forest" checked>' +
+                        '<span class="gf-box">&#10003;</span><span>Forest cover</span></label>' +
                         // User rule: whether clicking a polygon OPENS the Info panel is a preference,
                         // not a fixed behaviour. Same pill styling as the layer toggles above.
                         '<label class="gf-value checked" title="Open the Info panel when a boundary is clicked">' +
@@ -1286,10 +1344,13 @@
                     var lbl = cb.closest('label.gf-value');
                     lbl.addEventListener('click', function(e) {
                         e.preventDefault();
-                        cb.checked = !cb.checked;
-                        lbl.classList.toggle('checked', cb.checked);
                         var layer = window[cb.dataset.layer];
                         if (!layer) { return; }
+                        // Read the intent from the MAP, not from the checkbox: the Leaflet layer
+                        // switcher toggles the same layers, so a blind flip leaves a desynced pill
+                        // whose next click does nothing.
+                        cb.checked = !map.hasLayer(layer);
+                        lbl.classList.toggle('checked', cb.checked);
                         if (cb.checked) {
                             if (!map.hasLayer(layer)) { layer.addTo(map); }
                         } else {

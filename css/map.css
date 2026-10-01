@@ -20,7 +20,7 @@
             min-height: 120px;
             position: relative;
             z-index: 1;
-            background: #e8f5e9;   /* light green canvas */
+            background: #ffffff;   /* white canvas (exterior mask covers the rest) */
         }
         
         /* Page title overlay */

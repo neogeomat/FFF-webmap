@@ -51,9 +51,29 @@
        .site-header { position: fixed; top: 0; inset-inline: 0; z-index: 100; }
        .map-mode-tabs { top: calc(var(--header-h, 80px) + 12px) !important; }
        #leftPanel, #rightPanel { top: calc(var(--header-h, 80px) + 0px) !important; }
-       /* Ensure map fills remaining viewport below header */
-       #map { height: calc(100vh - var(--header-h, 80px) - var(--bottom-h, 0px)); }
-     </style>
+        /* Ensure map fills remaining viewport below header */
+        #map { height: calc(100vh - var(--header-h, 80px) - var(--bottom-h, 0px)); }
+      </style>
+      <!-- Embed mode for the site home-page iframe (website/index.html): ?embed=1 (or any
+           framing) hides the duplicated site header so the map fills the frame. Standalone
+           loads are unchanged. Re-apply after any qgis2web re-export. -->
+      <script>
+        (function () {
+          try {
+            if (new URLSearchParams(location.search).get('embed') === '1' || window.self !== window.top) {
+              document.documentElement.classList.add('webmap-embed');
+            }
+          } catch (e) { /* standalone */ }
+        })();
+      </script>
+      <style>
+        html.webmap-embed body { padding-top: 0 !important; }
+        html.webmap-embed body .site-header { display: none !important; }
+        html.webmap-embed body .map-mode-tabs { top: 12px !important; }
+        html.webmap-embed body #leftPanel,
+        html.webmap-embed body #rightPanel { top: 0 !important; }
+        html.webmap-embed body #map { height: calc(100vh - var(--bottom-h, 0px)); }
+      </style>
      <title>FAO Grantees Map</title>
 </head>
 

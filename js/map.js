@@ -1188,6 +1188,16 @@
 
         // Forest cover from data/lc2022.tif (class code=4), pre-rendered to the tracked
         // data/forest4_preview.png (2048px, transparent elsewhere); the source .tif stays untracked.
+        // Colour = #7be25f (rgb(123,226,95), alpha 235) — a pixel recolour of the tracked PNG (the
+        // alpha mask is what defines the forest footprint; only the RGB changed).
+        // The recipe below RE-RENDERS it from the untracked raster: it does NOT reproduce the tracked
+        // footprint (a fresh A==4 render gives ~368k opaque px against the file's 557,529), so use it
+        // only when the footprint itself should change, never for a colour tweak.
+        //   gdal_calc.py -A data/lc2022.tif --calc="A==4" --type=Byte --NoDataValue=0 --outfile=/tmp/mask.tif
+        //   gdal_translate -outsize 2048 0 -r nearest /tmp/mask.tif /tmp/mask2048.tif
+        //   printf '0 123 226 95 0\n1 123 226 95 235\n' > /tmp/colors.txt
+        //   gdaldem color-relief /tmp/mask2048.tif /tmp/colors.txt data/forest4_preview.png -alpha -of PNG
+        // Anything drawn over it must contrast with that one colour (see the Chure hatch below).
         map.createPane('pane_Forest');
         map.getPane('pane_Forest').style.zIndex = 405;
         var layer_Forest = L.imageOverlay('data/forest4_preview.png',
@@ -1261,7 +1271,7 @@
             // this pane (z425) sits above District (z410), so a green fill would sit exactly on top
             // of the districts it crosses - the hatch reads as a band draped over them instead.
             // Districts are brick red now precisely so this green stays free (see the styleFn above).
-            // Deep green, not #27ae60: the forest overlay underneath is solid rgb(34,139,34).
+            // Deep green, not #27ae60: the forest overlay underneath is solid rgb(123,226,95).
             color: '#0b3d1f',
             fillColor: 'url(#chureHatch)',
             weight: 2.5,

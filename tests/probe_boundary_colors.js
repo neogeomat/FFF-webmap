@@ -72,7 +72,7 @@ const rgb = h => { const n = parseInt(h.slice(1), 16); return `rgb(${(n >> 16) &
   ok('no two boundary layers share a stroke colour', dupes.length === 0,
      `${JSON.stringify(primary)} dupes=${JSON.stringify(dupes)}`);
 
-  // The hatch must also carry over the forest overlay, which is a solid rgb(34,139,34) fill.
+  // The hatch must also carry over the forest overlay, which is one solid colour (#7be25f at present).
   const contrast = await p.evaluate(() => {
     const hex = s => [1, 3, 5].map(i => parseInt(s.substr(i, 2), 16));
     const lum = c => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
@@ -96,7 +96,7 @@ const rgb = h => { const n = parseInt(h.slice(1), 16); return `rgb(${(n >> 16) &
   // A resolved url(#…) is NOT proof the hatch paints, and "the band is invisible" is the exact
   // complaint that started this. Isolate the Chure pane, screenshot its own box, count the hatch -
   // then repeat with the pattern swapped for a solid fill, so "hatched" is measured, not assumed.
-  // Match on the hatch's own dark green: rgb(34,139,34) (forest) and the greys are far outside it.
+  // Match on the hatch's own dark green: the forest's own colour and the greys are far outside it.
   const clip = await p.evaluate(() => {
     document.querySelectorAll('.leaflet-pane').forEach(el => {
       if (el.classList.contains('leaflet-map-pane') || el.classList.contains('leaflet-pane_Chure-pane')) return;

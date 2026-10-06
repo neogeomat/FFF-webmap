@@ -28,6 +28,14 @@ too: two classes lose to one ID, so the state silently never applies — a greye
 in-flow panel that ignored `collapsed` both cost a debugging round. Verify a state by `getComputedStyle`,
 never by `classList`.
 
+**Before delegating to opencode, resolve the request against a real symbol in the tree.** The user describes
+UI text loosely and their words need not name anything in the code ("increase font size of tests in the
+sankey diagram" meant the sankey LABEL text); the fix is to grep for the candidate before loading the skill
+and, if it is still ambiguous, restate your reading in ONE line and make the change — do not ask a clarifying
+question about a reversible one-line edit. Asking cost a full user round-trip here. What is worth flagging
+instead is a consequence the user cannot see from the ask (a probe that asserts the old literal, a CI gate
+that goes red), stated AFTER the edit as a choice they can now make.
+
 **Base conventions, layout, data pipeline, and pitfalls live in `AGENTS.md` (repo root) —
 read that first.**
 
@@ -42,8 +50,12 @@ re-read the code before trusting either — a fix applied in code but left stale
 gets re-introduced. The `.csvt`/`.vrt` writers are gone for good (deleted from `make_geocsv.py`); QGIS/GDAL open
 the tracked `Grantees.combined.csv` copy and the page fetches the `.geocsv`.
 
-**What the browser loads** — the grantee layer has exactly ONE data fetch: `data/Grantees.combined.geocsv`,
-plus the five boundary geojsons (**simplified**: 29 MB → 2.6 MB, page 30.1 MB → 4.4 MB, 36 markers in ~0.8 s
+**What the browser loads** — the grantee layer's rows come from the PUBLISHED GOOGLE SHEET (`PRIMARY_CSV`, gid
+`1996981092`, fetched `{cache:'no-cache'}`) with `data/Grantees.combined.csv` as the FALLBACK, so editing the
+local csv alone does not change what the page shows; `data/Grantees.combined.geocsv` is **never fetched** and
+the geocsv-only description below is history. `tests/probe_geocsv_source.js` still asserts the geocsv and
+FAILS on a clean tree — leave it red and update/skip the probe, do not "fix" the map to satisfy it. Plus the
+five boundary geojsons (**simplified**: 29 MB → 2.6 MB, page 30.1 MB → 4.4 MB, 36 markers in ~0.8 s
 instead of ~1.6 s; originals live in the unversioned `../boundary-src/`, and `tests/boundary_pip_check.py`
 fails if a boundary rebuild moves a pin to another district). `data/grantees_attributes.json`,
 `data/investment_by_enterprise.json`, `consolidate_grantees_attributes.py` and `summarise_investment.py` are all
@@ -68,6 +80,14 @@ always 0.
   quote flag and skips CR.
 - Money scoping is asymmetric and that is correct: the national view counts all 68 orgs, a polygon scope only
   the orgs whose marker is inside it. Say so rather than "fixing" it.
+- **The displayed national total is NOT the finance ledger's total, and nothing checks it.** `DBG & LoA
+  (2019-2026).xlsx` holds 91 contracts / 2,803,636 USD; the built table holds 79 / 2,288,256 USD. The 12 missing
+  LoA contracts (515,379 USD) belong to seven names the registry resolves to synthetic `A*` orgs with no output
+  row — IUCN (4 / 341,748), Center for People and Forests, ForestAction Nepal, LI-BIRD, ANSAB, Yuwalaya, World
+  Food Forum Nepal — so they are dropped from the map and the Sheet. When quoting money, say "total of the orgs
+  that reached a row" unless the reconciliation has been fixed; a per-org workbook-vs-csv comparison is the
+  check (resolve with `make_geocsv.Registry` + `parse_finance`, then diff against the csv's
+  `loa_contracts_org`+`dbg_contracts_org`).
 - `.geocsv` is NOT gitignored (`git check-ignore -v` proves it) and is already tracked; keep it tracked,
   `.catch` the fetch so a missing file blanks the chart instead of breaking the page, and keep the probe's
   national-total assertion so a stale file fails loudly.
@@ -89,10 +109,30 @@ This skill additionally documents the boundary-overlay behavior and the
 browser verification recipe (see `references/leaflet-browser-verify.md`), which AGENTS.md
 does not yet cover — keep AGENTS.md in sync after map changes.
 
+## Data provenance (sources + collection)
+When asked to DESCRIBE this data, explain how it was collected, or trace a field to its source: the source
+table, the merge mechanics, the figure-verification snippet and the traps live in
+`references/data-provenance.md`. Always-on rules:
+- **Verify every figure against the FILE before quoting it** — `data/Grantees.combined.csv` read with stdlib
+  `csv` (79 rows × **42** cols; the docs say 40). Never quote a number from doc prose.
+- **The join is the string `S_N` through a hardcoded `ALIASES`/`SYNONYMS` Registry** (substring ≥8,
+  `difflib` 0.80 for review only); unmatched names become synthetic `A*` orgs. It is not a fuzzy or spatial
+  join — describe it accurately.
+- **Check the four `Map Categories_Final.xlsx - *.csv` inputs exist before promising or attempting a rebuild**
+  (`search_files(pattern='*', target='files', path='Webmap/data/moreDataFromFFF')`). They are derived and UNTRACKED, so `make_geocsv.py` `FileNotFoundError`s on a
+  clone; the workbook is the source of truth — re-derive from it rather than reporting the pipeline as broken.
+- **Read source workbooks with `uv run --quiet --with openpyxl python3 -`** (system python3 has no openpyxl)
+  and iterate rows: sheets with no dimension record report `max_row`/`max_column` as `None`.
+- **Magnitude-check any freshly delivered X/Y before treating it as lon/lat** (|x|>180 or |y|>90 ⇒ projected
+  metres needing reprojection); a projected value written into `WKT` renders as no marker.
+
 ## When to use
 - Editing grantee data, markers, popups, the info panel, the filter, or basemaps in this repo.
 - Editing the Grantees data layer (`data/Grantees.combined.geocsv`) or its load wiring in `js/map.js`.
 - Editing the District/Local Level/Province/Chure/Nepal boundary overlays or the `#granteeFilterBar` toggle pills.
+- Editing the SIBLING site repo `website/` (its own git root, branch `master` → `FFF-site`): the story map, its
+  slide content, or a site page — see `references/website-storymap-content.md`. The site's slide content is
+  Sheet-primary like the map's grantee rows, so "update the stories" means a paste + a repo csv, not a code change.
 
 ## Grantee data layer (single source: `data/Grantees.combined.geocsv`)
 The grantee points are neither an embedded JS blob nor an async GeoJSON file. `js/map.js` creates the layer up
@@ -163,18 +203,62 @@ The map now needs HTTP for EVERYTHING: boundaries and grantees are both `fetch`-
 
 ## Boundary overlays (added after AGENTS.md — keep AGENTS.md in sync)
 Five committed GeoJSON boundary layers wired in `Webmap/js/map.js` (one IIFE near the end):
-District (77 feats — styled per-feature by `project_area`: `'y'` (13, project area) → highlighted green
-#27ae60 fill @ 0.5 + dark-green stroke; `'n'` (64) → dimmed blue #3388ff fill @ 0.04, stroke-opacity 0.35),
+District (77 feats — styled per-feature by `project_area`: `'y'` (13, project area) → brick red
+#c0392b fill @ 0.3 + #922b21 stroke; `'n'` (64) → dimmed blue #3388ff fill @ 0.04, stroke-opacity 0.35),
 Province (7, orange #e67e22), Local Level (33 feats, `data/projectLocalLevels.geojson`, bright yellow #ffd400 stroke 3, dashArray
 '7 4', fill @ 0.06 — yellow+dashed because thin purple vanished over the satellite basemap; always
 labelled **Local Level** in the UI, never `projectLocalLevels`),
-Chure (1, green #27ae60, the Terai/Chure belt),
-Nepal (1, white #ffffff, always added to the map on load).
+Chure (1, deep green #0b3d1f stroke 2.5 + a `url(#chureHatch)` pattern fill at opacity 1, the Terai/Chure belt),
+Nepal (1, brown #8B4513, always added to the map on load).
+- **Boundary colours must stay mutually distinct AND distinct from everything they paint over — read the
+  RENDERED colours, not the source, and MEASURE the layer underneath.** A layer is invisible when its stroke
+  matches the fill of the layer it paints over (Chure's z425 green landed on the z410 project-area districts'
+  `#27ae60` fill, so neither was readable), when it matches the canvas behind everything (the exterior mask is
+  `#dee2e6`, NOT white — the `#map` canvas is `#ffffff` too, `css/map.css`), or when it matches an image
+  OVERLAY rather than a boundary: the forest layer paints one solid `rgb(123,226,95)` (#7be25f) under the whole Chure
+  belt, so a mid-green hatch there was a 1.5:1 contrast ratio and read as nothing at all.
+- **Colour choice is a measurement, not a taste call.** For anything drawn over another layer, sample that
+  layer's own pixels — draw the `L.imageOverlay`'s `<img>` to a canvas in-page, take its opaque colour — and
+  assert a WCAG contrast ratio in the probe (≥2:1 for a casing/stroke over a solid overlay, ≥3:1 over the
+  canvas). `#0b3d1f` measures 2.8:1 over the forest and 12.3:1 over white; the value the user picked by eye
+  `#27ae60` measured 1.5:1. Keeping the requested HUE and moving its VALUE is what satisfied "green, but
+  visible" — do not silently switch hue families again (purple was rejected) when the fix is a darker value.
+- **A single-colour overlay PNG is not reproducible from its recipe — recolour the pixels, do not re-render.**
+  `data/forest4_preview.png` is one flat RGB at alpha 235 (exactly 2 distinct RGBA values, 557,529 opaque px),
+  but a fresh `gdal_calc.py --calc="A==4"` + `gdaldem color-relief` run gives a different footprint
+  (~367,704 opaque px): the tracked file came from an earlier render nobody recorded. For a colour change,
+  decode the PNG with stdlib `zlib`+`struct`, substitute the RGB where alpha>0, re-encode, and ASSERT that the
+  alpha plane is byte-identical to the original and that the output has exactly 2 colours. If the recolour and
+  the re-render disagree on opaque pixel count, the dataset changed — not the colour — and re-rendering would
+  have silently shrunk the forest area by a third.
+- **A hatch/pattern fill needs no plugin: a zero-size SVG `<pattern>` in `index.html`,** referenced as
+  `fillColor: 'url(#chureHatch)'`. `leaflet-pattern` is NOT vendored here and adding it is the wrong fix. Two
+  traps: keep the SVG zero-size + `position:absolute` and never `display:none` (a `display:none` subtree's
+  pattern does not resolve), and thread the value through the shared style object — `base` in the `specs` loop
+  must carry `fillColor: spec.fillColor`, or a spec's `fillColor` is dropped and Leaflet falls back to the
+  stroke colour (`options.fillColor || options.color`). A pattern fill at `fillOpacity: 1` is correct: the
+  pattern's own line colour carries the alpha.
+- Probes: `tests/probe_boundary_colors.js` (pairwise-distinct strokes per pane, the covered-fill check, the
+  WCAG ratio against the forest's live-sampled colour, and a screenshot pixel A/B that the hatch PAINTS and is
+  not a solid fill — swap the path's `fill` to the same colour solid and require the hatch to cover <60% of it)
+  and `tests/probe_outside_mask.js` (mask differs from the canvas).
 - Loaded via `fetch`, NOT embedded globals — **they only appear when served over HTTP;
   opening `index.html` via `file://` silently shows no boundaries.** The Grantees layer is `fetch`-ed too
   (the geocsv), so `file://` shows no boundaries AND no markers — HTTP for everything, no exceptions.
 - **Startup canvas (user rules):** base layer is `No background` so the light-green `#map` background (`#e8f5e9`, one CSS declaration on `#map`) shows; Satellite (Esri) and OpenStreetMap stay selectable in the switcher but are NOT added on load. **Above z12 the satellite turns itself on, at ≤12 it turns off** — one `map.on('zoomend')` handler that adds/removes `layer_EsriImagery` against `empty_baseLayer`; `L.control.layers` re-ticks its own radio off the `layeradd`/`layerremove` events, so never hand-sync the switcher. Verify the threshold with the row-zoom as a known anchor (it lands exactly at z13, so the satellite must already be on there): one zoom-out to z12 must clear every `img.leaflet-tile` and zooming back to z13 must bring them back. Implement the empty base as `L.gridLayer({})`, never `L.tileLayer('')` — the blank tileLayer still spawns a screenful of tile elements (bogus requests for the page itself) even though nothing paints. Assert both sides of that judgement: `img.leaflet-tile` count 0 on startup, and > 0 after clicking `Satellite (Esri)` in the switcher (proves the base-layer choice still works).
-- **The startup fit must leave the east edge clear of the floating legend** (user: the legend was blocking the east side on startup). `setBounds()` does `map.fitBounds(bounds_group.getBounds(), { paddingBottomRight: [200, 0] })` — 200px reserved on the right (~the collapsed right panel plus the 190px legend) shifts the fitted content left by half of it and zooms out a hair. Measure `window.layer_Grantees`-free (it is closure-scoped): the east-most `.org-pin-wrap`/`.grantee-cluster` right edge must sit left of `.commodity-legend`'s left edge with zero markers intersecting the legend rect; on the un-padded build markers sat ~67px underneath it.
+- **Deep links (`leaflet-hash`):** `new L.Hash(map)` sits right after `L.map(...)`, hash format `#zoom/lat/lng`, and `setBounds()` skips the startup fit when the URL arrived WITH a hash (`var hadHash = !!location.hash`) so a shared link is not immediately overwritten by `fitBounds`. **A plugin that `js/map.js` instantiates must be in `index.html`'s SYNCHRONOUS script block** — `js/map.js` is a plain script and runs BEFORE the deferred block, so keeping `<script defer src="js/leaflet-hash.js">` (or adding the init while the plugin stays deferred) leaves `L.Hash` undefined at the call site. Probe: `tests/probe_leaflet_hash.js` (the hash follows a programmatic `setView`; reloading that URL restores exactly that view instead of the fit; a bare load still runs the fit).
+- **A zoom-dependent visual is ONE `zoomend` handler declared next to its layer, plus one call at creation.**
+  Declare the updater (`function updateXOpacity() { … }`) inside the same closure that builds the layer — a
+  handler registered at script top level runs before the layer exists and would have to reach it through a
+  `window.` global — register it with `map.on('zoomend', updateXOpacity)` and call it once right after
+  `addTo(map)`, so the first paint already has the right value for the current zoom. Ramp with a clamped line
+  (`var o = (zmax - zoom) / (zmax - zmin); layer.setOpacity(o < 0 ? 0 : o > 1 ? 1 : o)`) — no easing curve
+  unless the user asks for one, and no cached value, since `zoomend` fires on every level change. The probe
+  asserts both ends, the exact midpoint, the clamped values outside the range, AND that zooming back out
+  restores it (a one-way check passes on a handler that only ever fades out). Worked example: the forest
+  overlay's opacity in `js/map.js`.
+- **The startup view has ONE authority, and a fit the user did not ask for must NEVER animate.** `setBounds()` fits the COUNTRY (`window.layer_Nepal.getBounds()`, `{ padding: [8, 8] }`) — the same extent + padding `fitNepal()` fits ~400 ms later, so that later call is a visual no-op — and falls back to `map.fitBounds(bounds_group.getBounds(), { paddingBottomRight: [200, 0] })` only while Nepal has not loaded yet (200px reserved on the right ≈ the collapsed right panel + the 190px legend, shifting the fitted content left and zooming out a hair). Three things made this jump on every load: the constructor's `center: [27.7, 83.0]`/`zoom: 7` was a THIRD, different view; `bounds_group` is NOT "the boundaries" — `clusters_Grantees` is the only layer ever added to it (`grep -n 'bounds_group' js/map.js`), so fitting it framed the PINS' own bbox (80.4–86.5 E) and cropped Nepal's west/east edges; and every one of those fits animated. Fix that holds: fit the creation-time view with `if (!hadHash) { map.fitBounds(L.latLngBounds([[26.348, 80.058], [30.473, 88.201]]), { padding: [8, 8], animate: false }); }`, placed AFTER `var hadHash = !!location.hash;` and BEFORE `new L.Hash(map)` so a deep link still wins. `animate: false` is the load-bearing part — the constructor's `setView` paints first, so an animated startup fit is a visible pan/zoom over the first frame; measured, the paint sequence went from `#7/27.700/83.000` → 1.0 s → `#8/28.290/84.001` → `#8/28.430/84.128` down to a single `#8/28.431/84.129`. `tests/probe_leaflet_hash.js` asserts it: poll `location.hash` for ~4 s on a bare load and require ONE distinct view (the country extent). To find WHO moves the view in the first place, instrument `L.Map.prototype` from an init script — see the `headless-browser-verification` skill.
+The legend clearance that the fallback padding buys is measurable without `window.layer_Grantees` (closure-scoped): the east-most `.org-pin-wrap`/`.grantee-cluster` right edge must sit left of `.commodity-legend`'s left edge with zero markers intersecting the legend rect; on the un-padded build markers sat ~67px underneath it. (`#commodityLegend` is `display:none` by default now, so this only bites if the legend is restored.)
 - No zoom auto-toggle anymore — District/Local Level/Province/Chure are toggled manually via checkboxes in
   the top `#granteeFilterBar` pill bar (District/Province/Chure default ON, Local Level default OFF). Nepal and
   the Organizations (grantee marker) cluster layer are ON by default.
@@ -189,6 +273,14 @@ Nepal (1, white #ffffff, always added to the map on load).
   `gf-boundary` pill with `data-layer="layer_<Name>"`. Default-OFF = do NOT `addTo(map)` in the fetch and do
   NOT mark the pill `checked`. Label it with a human name, never the filename (user rule:
   `projectLocalLevels.geojson` → "Local Level").
+- **A layer that appears in BOTH toggle UIs must read its intent from the MAP, not from the checkbox.**
+  `layerControl.addOverlay(...)` and the `gf-boundary` pill are two independent checkboxes over one layer, so a
+  blind `cb.checked = !cb.checked` in the pill handler goes out of sync the moment the user toggles the Leaflet
+  switcher — the next pill click then flips the checkbox back without changing the map, i.e. a click with no
+  response. Use `cb.checked = !map.hasLayer(layer)` and guard the add/remove with `map.hasLayer` (the shared
+  handler already does; keep it that way for every new layer). Same mechanism covers the forest overlay: it is
+  NOT a boundary but rides the same pill (`data-layer="layer_Forest"`, `window.layer_Forest`), so a non-boundary
+  toggle needs a `window` handle and a pill entry, no new JS.
 
 ## Collapsible panels — moving a panel to a new screen edge
 Three panels: `#leftPanel` (the Layers panel), `#rightPanel` (Aggregate / evolution),
@@ -213,8 +305,6 @@ place or its toggle button dangling:
    `index.html`: the button must protrude from the panel's NEW screen-facing edge
    (left-panel→right, bottom→above, right→left), and the arrow char (`›‹` vs `⌃⌄`)
    must match the new slide direction.
-
-**The two SIDE tabs are centred on their panel and flush on its edge** (user rules, in order: aggregate must move like Layers; no gap on the left; and they must sit "at the middle of map view at all times"). So `left-panel .panel-toggle-btn` → `left:100%; top:50%; transform:translateY(-50%)` and `right-panel .panel-toggle-btn` → `right:100%; top:50%; transform:translateY(-50%)` — flush on the edge, vertically centred. Do NOT anchor them to `bottom:0`: a panel spans `top:80px` to `calc(var(--bottom-h) + 12px)`, so `top:50%` keeps the tab in the middle of the visible map column while still riding the strip (the panel's height is what changes on a drag). Both tabs land ~34px below the map's own midline at every split — a constant offset that reads as centred. The bottom panel's own tab keeps `top:-30px; left:50%`. **Do not let a panel re-declare `bottom`** — `#rightPanel`'s old hard-coded `bottom:100px` detached it (and its tab) from `--bottom-h`, which is why only the Layers tab moved. Guarded by `tests/probe_aggregate_toggle.js`.
 
 After moving, verify computed `getBoundingClientRect()` of each panel over HTTP
 (see `references/panel-layout.md` for the exact probe + the hover-popup pattern).
@@ -242,11 +332,14 @@ is the `<div id="map">` (browser named access) — `map instanceof L.Map` is fal
 does not exist, which makes `invalidateSize()` helpers throw on every panel toggle. Anchor on a layer you
 hold instead: `(window.layer_Nepal && window.layer_Nepal._map) || (window.clusters_Grantees && window.clusters_Grantees._map)`.
 
-**The zoom LEVEL is not readable from a probe either** (same closure), so never assume it: anchor on an
-action whose zoom you control — `window.layer_District._map.setView(latlng, 13)` is exact — then step the map ±1
-with `.leaflet-control-zoom-in/-out` and assert the behaviour flips one step BELOW the anchor and back
-one step ABOVE it. Read the two observables that ARE in the DOM: `img.leaflet-tile` count and the
-`.leaflet-control-layers-base input:checked` radio. Assert both directions (in and out) — a one-way
+**Read the zoom LEVEL off an exposed layer instead of assuming it.** The Map instance is closure-scoped but
+the exposed LAYERS are not, so `window.layer_<Name>._map.getZoom()` gives the exact level — boundary layers
+always work, and experiment layers are exposed the same way (`window.layer_Forest`). A probe can therefore
+`_map.setView(center, z, {animate:false})`, wait ~500 ms for `zoomend`, and assert the exact zoom and the exact
+styled value for it, instead of inferring a level from a ±1 step. Keep the `.leaflet-control-zoom-in/-out`
+stepping as the cross-check that a real user gesture lands the same way, and keep reading the two DOM
+observables when the assertion is about the BASE layer: `img.leaflet-tile` count and
+`.leaflet-control-layers-base input:checked`. Assert both directions (in and out) — a one-way
 check passes on a handler that never turns the layer back off. Recipe + re-runnable probe:
 `scripts/probe_map_chrome.js`.
 
@@ -337,13 +430,17 @@ the metric before encoding it as a size or a total.
    newlines, so a CRLF file splits into ONE element and every line-range slice returns garbage (read_file shows
    the \r as part of each line precisely because it does not translate). Hand-retyping a 60-line block from the
    read output burns a cycle per failed attempt; slicing by line number never misses.
-   **For DOC edits (AGENTS.md, README blocks) skip the patch tool**: one `execute_code` pass —
+   **For a multi-line DOC edit (AGENTS.md, README blocks) reach for one `execute_code` pass rather than the patch
+tool** — a single-paragraph replacement is fine through `patch` (three landed first-try in a 16 KB AGENTS.md);
+the script route is for block rewrites, where fuzzy matching drifts:
    `s = open(p, newline='').read()`, `assert old in s`, `s.replace(old, new, 1)`, write, then print
    `s.count(marker)` per replacement so a miss is loud. Instant and immune to fuzzy-match drift, where the
    same multi-line replacement through the patch tool can stall for minutes on a file of a few KB.
 2. Serve over HTTP — `python3 -m http.server 6115 --directory Webmap` → `http://localhost:6115`.
    Check `ss -ltnp | grep 6115` first: a stale `http.server` from an earlier session keeps the
-   port and serves the OLD copy (your edit looks missing, data URLs 404). **Never verify
+   port and serves the OLD copy (your edit looks missing, data URLs 404). If `Webmap/node_modules` is absent,
+   `NODE_PATH=../website/node_modules node tests/probe_x.js` runs the same probes off the `website/` package
+   (it already devDepends on playwright) — use it to verify without an install. **Never verify
    boundary overlays via `file://`.**
    Verify with the headless Playwright harness (Chromium already installed):
    `cd ~/pw-check && node verify_web_ui.js` — edit its CONFIG for app-specific assertions;
@@ -366,6 +463,10 @@ the metric before encoding it as a size or a total.
    `cdp('Network.enable'); cdp('Network.setCacheDisabled', cacheDisabled=True); goto_url(...)`.
    Confirm with `js("bio_table_generator.toString().indexOf('NEW_STRING') >= 0")` before
    trusting any details-panel check.
+   **Separate "my edit caused this red" from "it was already red" BEFORE debugging either: `git stash push
+   <file>` → re-run just that probe → `git stash pop`.** One run settles it, and skipping it burns the session
+   in one of two ways — debugging a pre-existing failure as if your edit caused it, or relaxing an assertion to
+   paper over a regression you actually introduced.
    **A failing probe is guilty until proven innocent — validate the probe before touching app code.**
    Three false negatives in one session, all measuring the wrong thing: hovering the *tooltip* instead of
    its marker (measure `getBoundingClientRect()` of the element you actually meant and print its
@@ -439,8 +540,32 @@ the metric before encoding it as a size or a total.
 - **Scan the staged list before committing** (`git diff --cached --name-only`): `git add -A` sweeps in
   LibreOffice lockfiles (`data/.~lock.*#`), which are NOT gitignored here. `git rm --cached` the junk, delete
   the file, else it ships.
+- **Before trusting a data file you just rewrote, check whether that Office app is STILL RUNNING it**
+  (`pgrep -af 'onlyoffice|soffice'`; a `data/.~lock.<file>#` whose mtime is seconds old is live, not stale).
+  A save from that already-open window writes the OLD buffer back over your new content — the user sees a file
+  that silently reverted. Do not delete a live lock; say the window must be closed WITHOUT saving, and land the
+  new content in a commit first so `git checkout -- <file>` can restore it.
+- **Never clear the index in this repo, and never compose a `git rm --cached` with a `git add` in one
+  command.** The tracked-but-IGNORED files here (`.hermes/**`, `DATAFLOW.md`, `*.csv`) match `.gitignore`, so
+  once `git rm --cached` drops them from the index they are untracked AND ignored — `git add -A` / `git add .`
+  skips them SILENTLY while every other file re-stages, so the commit looks normal but has dropped them.
+  Recovery is `git reset` (rebuilds the index from HEAD; the working tree is never touched). Stage EXPLICIT
+  paths (`git add js/map.js tests/probe_x.js`, then `git add -f .hermes/…`) and read
+  `git diff --cached --name-only` before committing — a bare `-A` is only safe in a repo whose tracked files
+  are all visible to `add`.
 - Confirm the deploy by size, not by opening the site: `curl -sI https://neogeomat.github.io/FFF-webmap/data/District.geojson`
   should now report the SIMPLIFIED ~1.8 MB (was ~17 MB) — a stale Pages cache otherwise hides a bad upload.
+- **A file the PAGE fetches at runtime must be TRACKED, even when the neighbouring inputs stay untracked.**
+  `data/forest4_preview.png` (53 KB, the forest overlay's image source) ships in the same commit as the code
+  that loads it; `data/lc2022.tif` (21 MB, its source raster) and the `.aux.xml` sidecar stay out. Shipping an
+  overlay without its asset deploys a 404 that nobody sees until the live site.
+- **Verify the deploy by CONTENT, not by a 200 on the page:** `curl -s <pages-url>/js/map.js | grep -c '<a literal
+  unique to this change>'` (plus the same grep against the site repo's submodule copy at
+  `<site-url>/Webmap/js/map.js`, which is how you prove the submodule bump landed) and a 200 on any newly added
+  asset. The first check after a push is usually STALE — retry ~20 s apart for 2-3 attempts; that is also what
+  separates deploy lag from a push that went to the wrong branch.
+
+- **A modified tracked DATA file is not yours to commit just because it is modified.** Check its SHAPE, not the diff stat: `git show HEAD:data/Grantees.combined.csv | head -1` must still be the 51-column `grant_sn,S_N,…` header, and `head -1` of the working copy must match — a working copy starting with a BOM + `Row Labels` is an Excel pivot paste, and committing it feeds the map's fallback path and every fresh clone garbage. Name the file and the mismatch in the report and stage explicit paths instead; the user (or another agent) may be mid-edit, so never "restore" or rewrite it without asking.
 
 ## Two skill copies — keep them identical
 This skill exists twice: global `~/.hermes/skills/web-mapping/fao-fff-grantees-map/` and in-repo
@@ -453,6 +578,39 @@ concurrently: committed work appears without you, and a dirty working tree can g
 someone else's baseline commit. Before syncing or copying anything, re-check `git status` and
 `diff -rq`, and use `git log -S '<marker>' -- <path>` to find which commit carries a change
 instead of assuming yours is still uncommitted.
+
+## Graphify (the code graph) — scope the corpus before you rebuild
+`graphify query "<q>"` / `graphify update .` run FROM THE PROJECT ROOT `/home/ubentu/ssd/baato/FAO/FFF`
+(the parent of the `Webmap/` git root) — that is where `graphify-out/` and its manifest live. A bare `/graphify`
+there re-extracts the whole project, not just the map; never invoke it from `Webmap/` or from `$HOME`.
+- **A `.graphifyignore` at the project root is the corpus lever** (it sits outside every git repo, so it adds no
+  untracked noise, and one deleted line widens the scan). Keep excluded: `website/Webmap/` (a byte-copy of
+  `Webmap/`, doubles every node), the minified vendor bundles, the Leaflet UI sprite images, and
+  `Sujan Sapkota/` (55 scanned PDFs with no text layer). Without it the graph is ~2000 nodes named `a`, `n`, `o`,
+  `Si` — minified library internals; if a rebuild reports those hubs, the ignore file is missing.
+- **`Webmap/.gitignore` silently keeps the best docs out of the graph** (`*.md`, `*.csv`, `*.qmd`, `.hermes/`),
+  so `DATAFLOW.md`, `PLAN.md`, this skill's in-repo copy and `data/*.csv` are NOT in it. Do not try to negate
+  that from an outer `.graphifyignore` (the inner `.gitignore` wins under last-match-wins) — say the docs are
+  outside the graph rather than implying coverage.
+- **Verify the `paper` bucket holds text before dispatching extraction subagents.** Classification is by
+  EXTENSION: `read_file` one file first — a scan fails per file with `NeedsOcrError`, and a `.pdf` can be plain
+  UTF-8 text (`file <path>` settles it).
+- **A rebuild from a narrowed scope must be FORCED, and the outgoing graph kept first.** The build refuses to
+  overwrite `graphify-out/graph.json` with a smaller graph (#479), so a scoped rebuild otherwise ends as a
+  silent no-op that leaves the old vendor-noise graph in place: move `graph.json` + `GRAPH_REPORT.md` into
+  `graphify-out/<YYYY-MM-DD>/` (that is where the older snapshots already live — nothing archives for you), then
+  write with `force=True` / `graphify update . --force`.
+- **`graphify-out/graph.json` is node-link JSON — the edges are under `links`, not `edges`** (hyperedges nested
+  inside a `graph` object). A diagnostic that reads `graph.json['edges']` reports zero edges on a healthy graph,
+  and the wrong next move is rebuilding it.
+- **Driving the pipeline by hand (library calls instead of the CLI) means verifying the merge yourself.**
+  Each `.graphify_chunk_NN.json` must cite ONLY the files that chunk was handed — a chunk referencing another
+  chunk's paths, or absent from disk, means a subagent wrote wrong content or ran read-only; per chunk check that
+  it parses with `nodes`/`edges` and that `set(source_file) ⊆` its own file list, and stop if more than half
+  fail. `_stamped_manifest_files(...)` returns a dict keyed by FILE TYPE, so its `len()` is ~5 on a healthy run —
+  read `manifest.json` itself (one row per corpus file) before concluding the manifest is broken.
+Recipe, the exact exclude list, per-type traps and the counts a healthy build lands on:
+`references/graphify-corpus.md`.
 
 ## Grantee filters + details panel (sourced from the geocsv rows)
 The Commodities filter and the right Details panel read CSV-derived attributes carried on each
@@ -619,25 +777,11 @@ BOTTOM panel** now (`#bottomPanel`, under the boundary overview text), not here 
   the Commodity pills filter on — not the free-text `Commodities` string). The render join must first COPY
   `district`/`province`/`municipality` from `orgs[]` onto `p` — it never did; without that there is nothing
   to fall back on for labels.
-- **The chart must FIT the strip (hard rule, user report: "the diagrams do not fit the available vertical
-  space, some part is always hidden, even when panel is moved up").** `sankeyInnerHeight(svgEl)` derives the
-  height from `var(--bottom-h)` minus the dropdown row and heading. **Never measure `.sankey-wrap`**: it is
-  sized by the chart it contains, so a read-back is the PREVIOUS render's height — the chart chased its own
-  size, lagged every drag one step, and grew ~48px per redraw. Never reintroduce a fixed floor (the old
-  `Math.max(460, …)` outgrew a short strip and left nodes below the fold). d3 spills ~48px past `extent` when
-  the node count can't fit: reserve it (`SPILL = 48`, extent height `h - SPILL`) and derive `nodePadding` from
-  `h / tallest-column`. `.panel-content` is a flex column with `min-height: 0` and scrolls, so an oversized
-  chart is scroll-reachable rather than clipped. Probe: `tests/probe_sankey_fit.js` (5 panel heights + real
-  `#bottomResize` drags: no clipping, `attr` height == CSS height, chart tracks the strip).
 - Sankey, as shipped: **FFF → the columns you pick** — drawn TWICE (user rule): `#chartSankeyAmount`
   first, flowing each org's LoA+DBG **USD** from `moneyBySN`, then `#chartSankey` counting one unit per
   **organization**; `renderSankey(scope, ms)` fans out to `renderSankeyInto(svgId, metric, scope, ms)`.
 - **The chain is interactive (user rule).** `#sankeyCols` (index.html, above the charts) holds **6 native
-  `<select>`s** (options: blank / Grant type / Commodity / Women-led / Year / Province / District / Palika /
-  Organization — **Organization last**, and the SHIPPED DEFAULTS are **Grant type, Year, Commodity, —, —, —**,
-  both user requests; three probes used to hardcode the old Province/District/Palika defaults, so any probe that
-  needs a specific chain must SET the dropdowns itself rather than assume them); `SANKEY_DIMS` maps each
-  dimension to one accessor: `Province`/`District`/`Palika` **from
+  `<select>`s**; `SANKEY_DIMS` maps each dimension to one accessor: `Province`/`District`/`Palika` **from
   point-in-polygon** (user rule: "use pip for province and local levels as well") with the attribute as
   fallback — `provinceOf` → `nameAt(layer_Province,'Province')` through `PROVINCE_NAME` (the geojson stores 3
   provinces as bare `STATE_CODE` numbers, so `2` must become `Madhesh`), `districtOf` →
@@ -693,6 +837,35 @@ BOTTOM panel** now (`#bottomPanel`, under the boundary overview text), not here 
   (14 assertions: in the panel under the charts, header == picked columns + 3, no duplicate chains, both column sums ==
   the charts' `FFF (…)` root labels, share == 100%, totals row echoes the columns, a dropdown change moves the
   header/rows but not the totals, no clipped columns, no page errors).
+- **Sankey labels: `.style('font', …)`, never `.attr('font', …)`; fit them by measurement.** SVG has no `font`
+  presentation attribute, so `attr('font', '10px Arial')` is silently ignored and the labels inherit ~16px —
+  they then overrun their gutters (the reported "last column overlaps the second last": right-anchored labels
+  ran 12px over the previous column's nodes) and clip at the chart edge (measured: 44px past a 509px chart).
+  Fix that held: **start EVERY label at `x1 + 6` (`text-anchor: start`), the last column included**, and fit
+  each to its room with `getComputedTextLength()` against the **measured** pitch (next column's `x0` − this
+  `x1` − 10; the right gutter for the last column). A px/char estimate is not good enough (7px truncated
+  `Bagmati ($487k)`, which is 88px in a 96px room; 5.6px let labels run past the edge). Node `<title>` keeps the
+  full name when a label truncates. `extent([[28, 10], [w - 110, h - SPILL - 10]])` — the right gutter only has
+  to cover the LAST column's own label, and a narrower one buys pitch for every other column.
+  **Never left-anchor the last column and never widen the gutter to fix a collision.** d3-sankey's `x0` is
+  UNIFORM per column (columns are `(w' − nodeWidth) / maxDepth` apart), so `x0 − 14` for the last column lands
+  inside its own pitch — directly on the second-last column's boxes — and no gutter can create room for it.
+  Widening the gutter SHRINKS the pitch and makes every collision worse; it looks like a fix and changes
+  nothing on screen (two passes were spent on it). The real collision was the `maxL = 15` CHARACTER-COUNT
+  truncation: a 100px pitch against 90–113px district labels, so character count is simply the wrong axis.
+  The floor is `extent([[8, 10], [w - 150, h - 10]])` + pitch-fit; anything narrower clips. **Font size is
+  the binding constraint on that choice, not a free knob.** Bumping the label font (10px → 13px for
+  readability) shrinks how many characters fit the same measured room (1.3× cost), so `Kabhrepalanchok (2)`
+  drops to `Kabhrepal… (2)` — and `probe_sankey_pip.js` asserts the FULL district label string, so a font
+  bump fails it. That is a probe/behaviour mismatch to resolve deliberately (relax to a prefix match, or keep
+  full names and pay more truncation), not a bug to fix by growing the gutter: growing it was tried and it
+  makes things worse (see the widening rule above — it SHRINKS pitch). Pick the size and the probe assertion
+  together. **Resolved here by relaxing that assertion to a unique-prefix match** — a smaller bump is no escape
+  (12px left `Kabhrepala…`, 13px `Kabhrepal…`; both truncate), and the check's real subject is that PIP supplies
+  the district name, which the prefix still proves. An over-wide
+  gutter silently squeezes `Kabhrepalanchok` to `Kabhrepala…` (caught by `probe_sankey_pip.js`). Measure with
+  `getBoundingClientRect()` on the SVG's own coordinate system — **`getBBox()` returns 0 for these `<text>`
+  nodes in the headless build**, so a `getBBox`-based assertion passes vacuously against an all-zero chart.
 - **`js/map.js` is two sibling scopes — cross-scope calls go through `window._sankeyRefresh`.** `selectedScope`,
   `renderSankey`, `renderSankeyTable` and `renderSankeyInto` are declared in the later block (~line 1300+), while
   the resize bar (~line 68) and `setMapMode` (~91) live in the earlier block. Reaching across directly gives
@@ -724,11 +897,28 @@ BOTTOM panel** now (`#bottomPanel`, under the boundary overview text), not here 
   `tests/probe_layout_split.js` (legend hidden, no overlap, 50% default, drag resizes both boxes, Nepal stays
   fitted, collapse shrinks to the header, option order).
 - **Sankey placement: the BOTTOM panel** (`#bottomPanel`, above `#aggregate`'s text, user rule), the two charts
-  **SIDE BY SIDE** (`.sankey-row { display:flex; gap:14px }` + `.sankey-wrap { flex:1 1 0; min-width:0 }`) and each
-  `max(460, strip+40)` tall (the floor is the measured crossing sweet spot; a dragged-taller panel draws
-  taller charts, up to 1000px, and a short strip just scrolls); `renderSankeyInto` sets the SVG width from its own box at render time
+  **SIDE BY SIDE** (`.sankey-row { display:flex; gap:14px }` + `.sankey-wrap { flex:1 1 0; min-width:0 }`).
+  Each chart sets its SVG width from its own box at render time
   (`Math.max(420, wrap.clientWidth - 2)` — clientWidth survives a collapsed panel, so no zero-width trap; a
-  resize does NOT re-fit, the charts keep their drawn size until the next re-render). The panel scrolls (`#bottomPanel` is a fixed 350px strip; `.panel-content` is `overflow-y:
+  resize does NOT re-fit the charts, they keep their drawn size until the next re-render).
+- **The chart height must FIT the strip, and must never be measured from inside it (hard rule — user report:
+  "the diagrams do not fit the available vertical space, some part is always hidden, even when panel is moved
+  up").** `sankeyInnerHeight(svgEl)` DERIVES the height: parse `var(--bottom-h)` off `documentElement`
+  (`vh`/`px`), subtract `#sankeyCols` (`offsetHeight`) + the `<strong>` heading + ~30px chrome. **Never read
+  `.sankey-wrap`'s height** — the wrap is sized by the chart it contains, so a read-back returns the PREVIOUS
+  render's height: the chart chases its own size, lags every drag by exactly one step, and grows ~48px per
+  redraw until it is enormous. Any measurement taken inside the box being resized is this bug. **Never
+  reintroduce a fixed floor** — the old `Math.max(460, strip+40)` outgrew any strip shorter than ~460px
+  (`.panel-content` then clipped it) and the `+40` was larger than the box it was meant to fit. d3 spills
+  ~48px past `extent` whenever the node count cannot fit, whatever `nodePadding` is asked for: reserve it
+  (`SPILL = 48`, extent height `h − SPILL`) and derive `nodePadding` from `h / tallest-column` instead of a
+  constant. `.panel-content` is a flex COLUMN with `min-height: 0` and `overflow-y: auto`, so an oversized
+  chart is scroll-REACHABLE rather than clipped — that containment (`display:flex; flex-direction:column`) is
+  what lets a child be bounded by the panel at all; a plain block `.panel-content` gives the row no definite
+  height and the chart is unbounded. Probe: `tests/probe_sankey_fit.js` (5 panel heights + real `#bottomResize`
+  drags; asserts no clipping at any height, `attr` height == CSS height, a shorter strip gives a shorter chart,
+  and a drag up gives a taller chart than a drag down — a probe that only checks `pageerror` misses a silently
+  clipped chart). The panel scrolls (`#bottomPanel` is a fixed 350px strip; `.panel-content` is `overflow-y:
   auto`, so the two tall charts scroll — user asked for exactly that). Because the bottom panel STAYS VISIBLE in
   evolution/women mode (the right panel's `#tab-aggregate` is `display:none` there), `applyEvolutionFilter`
   re-renders both from the *visible* markers — otherwise the flow silently goes stale when the year slider

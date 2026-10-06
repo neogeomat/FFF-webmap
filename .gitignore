@@ -74,3 +74,8 @@ target/
 *.tar.xz
 *.tar.zst
 ```
+# generated relational export (rebuild with tools/make_gpkg.py)
+data/*.gpkg
+data/FFF_FAO_Small grant projects details.xlsx
+data/moreDataFromFFF/Map Categories_Final.xlsx
+data/moreDataFromFFF/Nawalpur JanakSir.xlsx
